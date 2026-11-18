@@ -12,7 +12,9 @@ import (
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
 	"dtr/server/internal/dtr"
+	"dtr/server/internal/holidays"
 	"dtr/server/internal/photoaudit"
+	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
 	"dtr/server/internal/storage"
@@ -43,6 +45,8 @@ type API struct {
 	Schedules  *schedule.Store
 	Requests   *requests.Store
 	PhotoAudit *photoaudit.Store
+	Holidays   *holidays.Store
+	Reports    *reports.Service
 	Photos     storage.Store
 	JWTSecret  []byte
 	MaxPhotoMB int
@@ -99,8 +103,11 @@ func (a *API) Routes(app *fiber.App) {
 	secured.Get("/dtr", a.dtr)
 	a.requestRoutes(secured)
 	a.photoAuditRoutes(secured)
+	a.reportRoutes(secured)
 
-	a.adminRoutes(secured.Group("/admin", a.requireRole(roleHR, roleSuper)))
+	adminGroup := secured.Group("/admin", a.requireRole(roleHR, roleSuper))
+	a.adminRoutes(adminGroup)
+	a.holidayAdminRoutes(adminGroup)
 }
 
 // dummyHash makes unknown employee numbers cost the same as wrong PINs.
@@ -346,6 +353,15 @@ func (a *API) dtr(c *fiber.Ctx) error {
 	adjustments, marks, err := a.Requests.ForMonth(c.Context(), id, year, month)
 	if err != nil {
 		return err
+	}
+	hol, err := a.Holidays.ForMonth(c.Context(), year, month)
+	if err != nil {
+		return err
+	}
+	for d, label := range hol {
+		if _, ok := marks[d]; !ok {
+			marks[d] = label
+		}
 	}
 	sheet := dtr.Compute(year, month, append(logs, adjustments...), marks, hoursFor, a.Loc)
 

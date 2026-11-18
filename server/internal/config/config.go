@@ -8,15 +8,16 @@ import (
 )
 
 type Config struct {
-	Addr        string
-	DatabaseURL string
-	JWTSecret   []byte
-	PhotoDir    string
-	MaxPhotoMB  int
-	MinGapSecs  int // blocks duplicate taps; a setting, not a constant
-	RequestDays int // how far back a request may be dated
-	CORSOrigins string
-	SeedDemo    bool
+	Addr             string
+	DatabaseURL      string
+	JWTSecret        []byte
+	PhotoDir         string
+	MaxPhotoMB       int
+	MinGapSecs       int // blocks duplicate taps; a setting, not a constant
+	RequestDays      int // how far back a request may be dated
+	HabitualLateDays int // late days in a month that flag habitual tardiness
+	CORSOrigins      string
+	SeedDemo         bool
 }
 
 func Load() (Config, error) {
@@ -48,6 +49,11 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("REQUEST_WINDOW_DAYS must be a positive integer")
 	}
 	c.RequestDays = days
+	hab, err := strconv.Atoi(env("HABITUAL_LATE_DAYS", "10"))
+	if err != nil || hab < 1 {
+		return c, fmt.Errorf("HABITUAL_LATE_DAYS must be a positive integer")
+	}
+	c.HabitualLateDays = hab
 	return c, nil
 }
 

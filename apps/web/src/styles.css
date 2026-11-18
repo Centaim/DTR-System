@@ -1340,3 +1340,109 @@ ul {
 .rows.flat {
   margin-top: 0;
 }
+
+/* ---------- Dashboard and reports ---------- */
+
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  flex: none;
+  white-space: nowrap;
+}
+
+.lead {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flat-scroll {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9375rem;
+}
+
+table.data th,
+table.data td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--seam);
+  text-align: right;
+  vertical-align: top;
+}
+
+table.data thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--seam-strong);
+}
+
+table.data th[scope="row"],
+table.data thead th:first-child {
+  text-align: left;
+  font-weight: 600;
+}
+
+table.data tfoot th,
+table.data tfoot td {
+  font-weight: 700;
+  border-bottom: 0;
+  border-top: 1px solid var(--seam-strong);
+}
+
+table.data.compact th,
+table.data.compact td {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+table.data.compact thead th {
+  letter-spacing: 0.02em;
+}
+
+table.data .sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+table.data .tag {
+  margin-top: 4px;
+}
+
+.flat-scroll table.data.wide {
+  min-width: 560px;
+}
+
+/* Grid and flex children may shrink below their content, so a wide table
+   scrolls inside its own container instead of widening the page. */
+.admin-cols > *,
+.stack > *,
+.main > * {
+  min-width: 0;
+}
+
+@media print {
+  .tabs {
+    display: none;
+  }
+}

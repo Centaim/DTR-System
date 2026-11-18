@@ -2,7 +2,7 @@
 
 Daily Time Record system for Philippine government agencies. Employees clock in and out with a live photo as proof of attendance. See `PLAN.md` for scope and `CLAUDE.md` for project rules.
 
-**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR, and photo audit with rule-based anomaly flags. Not built yet: kiosk, reports, dashboard, the Tauri mobile shell. Admin, requests, approvals and audit screens are English only for now.
+**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR, photo audit with rule-based anomaly flags, a holiday calendar, an HR dashboard, and a monthly attendance summary with CSV export. Not built yet: kiosk, the Tauri mobile shell. Admin, requests, approvals and audit screens are English only for now.
 
 ## Run locally
 
@@ -27,7 +27,7 @@ Open http://localhost:5173 and sign in with any of these synthetic demo accounts
 | Employee number | Role |
 |---|---|
 | `DEMO-0001` | Employee |
-| `HR-0001` | HR admin: employees, schedules, photo audit |
+| `HR-0001` | HR admin: dashboard, employees, schedules and holidays, photo audit, reports |
 | `ADMIN-0001` | Super admin: also HR and super admin accounts |
 
 Accounts HR creates get a temporary PIN and must choose their own at first sign-in.
@@ -47,6 +47,7 @@ Camera access needs `localhost` or HTTPS. Testing from a phone on the local netw
 | `CORS_ORIGINS` | `http://localhost:5173` | Allowed web origins |
 | `SEED_DEMO` | `false` | Insert the synthetic demo accounts |
 | `REQUEST_WINDOW_DAYS` | `30` | How far back an employee may date a request |
+| `HABITUAL_LATE_DAYS` | `10` | Late days in a month that flag habitual tardiness. Confirm the rule with HR |
 
 ## Checks
 

@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import { adminEn } from "./i18n-admin";
 import { requestsEn } from "./i18n-requests";
 import { auditEn } from "./i18n-audit";
+import { reportsEn } from "./i18n-reports";
 
 export type Lang = "en" | "fil";
 
@@ -84,6 +85,7 @@ const dict = {
     ...adminEn,
     ...requestsEn,
     ...auditEn,
+    ...reportsEn,
   },
   fil: {
     appName: "DTR",

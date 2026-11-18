@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ApiError, api, type Schedule } from "../../lib/api";
+import { ApiError, api, type Holiday, type Schedule } from "../../lib/api";
 import { useT } from "../../lib/i18n";
 
 const to12 = (hhmm: string) => {
@@ -21,11 +21,38 @@ export function SchedulesTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const year = new Date().getFullYear();
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [hol, setHol] = useState({ day: "", name: "" });
+  const [holError, setHolError] = useState("");
+
   const load = useCallback(() => {
     setFailed(false);
     api.admin.schedules().then(setList).catch(() => setFailed(true));
-  }, []);
+    api.reports.holidays(year).then(setHolidays).catch(() => undefined);
+  }, [year]);
   useEffect(load, [load]);
+
+  const addHoliday = async (ev: FormEvent) => {
+    ev.preventDefault();
+    setHolError("");
+    try {
+      await api.admin.createHoliday(hol);
+      setHol({ day: "", name: "" });
+      load();
+    } catch (e) {
+      setHolError(e instanceof ApiError && e.message ? e.message : t.errGeneric);
+    }
+  };
+
+  const removeHoliday = async (day: string) => {
+    try {
+      await api.admin.deleteHoliday(day);
+    } catch {
+      /* the list reload shows the true state */
+    }
+    load();
+  };
 
   const submit = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -92,6 +119,43 @@ export function SchedulesTab() {
         <div aria-live="polite">{error && <p className="msg bad">{error}</p>}</div>
         <button className="btn primary" type="submit" disabled={busy || !form.name.trim()}>
           {busy ? t.saving : t.createSchedule}
+        </button>
+      </form>
+
+      <section className="panel" aria-labelledby="hol-h">
+        <h2 id="hol-h" className="panel-h">
+          {t.holidaysHeading} {year}
+        </h2>
+        <p className="muted small">{t.holidayNote}</p>
+        {holidays.length === 0 && <p className="muted">{t.noHolidays}</p>}
+        <ul className="rows flat">
+          {holidays.map((h) => (
+            <li key={h.day} className="row">
+              <span className="row-main">
+                <span className="rail-slot">{h.name}</span>
+                <span className="rail-state">{h.day}</span>
+              </span>
+              <button className="link-btn" onClick={() => removeHoliday(h.day)}>
+                {t.removeHoliday}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <form className="panel form" onSubmit={addHoliday} noValidate>
+        <h2 className="panel-h">{t.addHoliday}</h2>
+        <label className="field">
+          <span>{t.holidayDate}</span>
+          <input type="date" value={hol.day} onChange={(e) => setHol({ ...hol, day: e.target.value })} required />
+        </label>
+        <label className="field">
+          <span>{t.holidayName}</span>
+          <input value={hol.name} onChange={(e) => setHol({ ...hol, name: e.target.value })} maxLength={80} required />
+        </label>
+        <div aria-live="polite">{holError && <p className="msg bad">{holError}</p>}</div>
+        <button className="btn primary" type="submit" disabled={!hol.day || !hol.name.trim()}>
+          {t.addHoliday}
         </button>
       </form>
     </div>

@@ -4,13 +4,25 @@ import { useT } from "../lib/i18n";
 import { EmployeesTab } from "./admin/EmployeesTab";
 import { SchedulesTab } from "./admin/SchedulesTab";
 import { AuditTab } from "./admin/AuditTab";
+import { DashboardTab } from "./admin/DashboardTab";
+import { ReportsTab } from "./admin/ReportsTab";
 
 export function Admin({ employee }: { employee: Employee }) {
   const { t } = useT();
   const manager = employee.role === "hr_admin" || employee.role === "super_admin";
-  const tabs = (manager ? ["employees", "schedules", "audit"] : ["audit"]) as ("employees" | "schedules" | "audit")[];
-  const [tab, setTab] = useState<"employees" | "schedules" | "audit">(tabs[0]!);
-  const label = (k: string) => (k === "employees" ? t.tabEmployees : k === "schedules" ? t.tabSchedules : t.tabAudit);
+  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports";
+  const tabs: Tab[] = manager
+    ? ["dashboard", "employees", "schedules", "audit", "reports"]
+    : ["dashboard", "audit", "reports"];
+  const [tab, setTab] = useState<Tab>("dashboard");
+  const labels: Record<Tab, string> = {
+    dashboard: t.tabDashboard,
+    employees: t.tabEmployees,
+    schedules: t.tabSchedules,
+    audit: t.tabAudit,
+    reports: t.tabReports,
+  };
+  const label = (k: Tab) => labels[k];
 
   return (
     <div className="shell">
@@ -35,10 +47,14 @@ export function Admin({ employee }: { employee: Employee }) {
           ))}
         </div>
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-          {tab === "employees" ? (
+          {tab === "dashboard" ? (
+            <DashboardTab />
+          ) : tab === "employees" ? (
             <EmployeesTab viewerRole={employee.role} viewerId={employee.id} />
           ) : tab === "schedules" ? (
             <SchedulesTab />
+          ) : tab === "reports" ? (
+            <ReportsTab />
           ) : (
             <AuditTab canReview={manager} />
           )}

@@ -15,7 +15,9 @@ import (
 	"dtr/server/internal/auth"
 	"dtr/server/internal/config"
 	"dtr/server/internal/db"
+	"dtr/server/internal/holidays"
 	"dtr/server/internal/photoaudit"
+	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
 	"dtr/server/internal/storage"
@@ -83,15 +85,22 @@ func main() {
 		AllowMethods: "GET, POST, OPTIONS",
 	}))
 
+	attSvc := attendance.NewService(pool, store, time.Duration(cfg.MinGapSecs)*time.Second)
+	schedStore := schedule.NewStore(pool)
+	reqStore := requests.NewStore(pool, cfg.RequestDays, loc)
+	holStore := holidays.NewStore(pool)
+
 	(&api.API{
 		Pool:       pool,
-		Attendance: attendance.NewService(pool, store, time.Duration(cfg.MinGapSecs)*time.Second),
+		Attendance: attSvc,
+		Schedules:  schedStore,
+		Requests:   reqStore,
+		PhotoAudit: photoaudit.NewStore(pool),
+		Holidays:   holStore,
+		Reports:    reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, cfg.HabitualLateDays),
+		Photos:     store,
 		JWTSecret:  cfg.JWTSecret,
 		MaxPhotoMB: cfg.MaxPhotoMB,
-		Schedules:  schedule.NewStore(pool),
-		Requests:   requests.NewStore(pool, cfg.RequestDays, loc),
-		PhotoAudit: photoaudit.NewStore(pool),
-		Photos:     store,
 		Loc:        loc,
 	}).Routes(app)
 

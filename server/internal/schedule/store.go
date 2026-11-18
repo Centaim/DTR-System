@@ -155,3 +155,41 @@ func (st *Store) HoursFunc(ctx context.Context, employeeID int64) (func(time.Tim
 		return h
 	}, nil
 }
+
+// HoursOn returns the official hours in force on one date for every employee
+// that has an assignment, plus the default for everyone else.
+func (st *Store) HoursOn(ctx context.Context, day time.Time) (map[int64]dtr.Hours, dtr.Hours, error) {
+	def, err := scan(st.pool.QueryRow(ctx, `SELECT `+cols+` FROM schedules WHERE is_default`))
+	if err != nil {
+		return nil, dtr.Hours{}, fmt.Errorf("default schedule: %w", err)
+	}
+	defHours, err := def.hours()
+	if err != nil {
+		return nil, dtr.Hours{}, err
+	}
+	rows, err := st.pool.Query(ctx, `
+		SELECT DISTINCT ON (a.employee_id) a.employee_id,
+		       to_char(s.am_start,'HH24:MI'), to_char(s.am_end,'HH24:MI'),
+		       to_char(s.pm_start,'HH24:MI'), to_char(s.pm_end,'HH24:MI')
+		  FROM schedule_assignments a JOIN schedules s ON s.id = a.schedule_id
+		 WHERE a.effective_from <= $1
+		 ORDER BY a.employee_id, a.effective_from DESC`, day.Format("2006-01-02"))
+	if err != nil {
+		return nil, dtr.Hours{}, err
+	}
+	defer rows.Close()
+	out := map[int64]dtr.Hours{}
+	for rows.Next() {
+		var id int64
+		var sc Schedule
+		if err := rows.Scan(&id, &sc.AMStart, &sc.AMEnd, &sc.PMStart, &sc.PMEnd); err != nil {
+			return nil, dtr.Hours{}, err
+		}
+		h, err := sc.hours()
+		if err != nil {
+			return nil, dtr.Hours{}, err
+		}
+		out[id] = h
+	}
+	return out, defHours, rows.Err()
+}

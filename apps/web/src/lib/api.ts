@@ -87,6 +87,49 @@ export interface AuditItem {
   review: { outcome: string; note: string; reviewer: string; reviewed_at: string } | null;
 }
 
+export interface Holiday {
+  day: string;
+  name: string;
+}
+
+export interface DashboardData {
+  date: string;
+  working_day: boolean;
+  holiday: string;
+  total: number;
+  present: number;
+  late: number;
+  excused: number;
+  not_in: number;
+  pending_requests: number;
+  open_flags: number;
+  offline_today: number;
+  offices: { office: string; total: number; present: number; late: number; excused: number; not_in: number }[];
+  recent: { employee: string; slot: string; at: string; offline: boolean }[];
+}
+
+export interface SummaryRow {
+  employee_no: string;
+  name: string;
+  office: string;
+  position: string;
+  present_days: number;
+  late_days: number;
+  absent_days: number;
+  excused_days: number;
+  undertime_min: number;
+  incomplete_days: number;
+  adjusted_days: number;
+  habitual_late: boolean;
+}
+
+export interface SummaryData {
+  month: string;
+  working_days: number;
+  habitual_threshold: number;
+  rows: SummaryRow[];
+}
+
 export interface LogEntry {
   id: number;
   slot: string;
@@ -228,6 +271,15 @@ export const api = {
       request<RequestItem>(`/api/approvals/${id}/decide`, json("POST", { approve, note })),
   },
 
+  reports: {
+    dashboard: () => request<DashboardData>("/api/reports/dashboard"),
+    summary: (month: string, office: string) =>
+      request<SummaryData>(`/api/reports/summary?month=${month}&office=${encodeURIComponent(office)}`),
+    csv: (month: string, office: string) =>
+      requestBlob(`/api/reports/summary.csv?month=${month}&office=${encodeURIComponent(office)}`),
+    holidays: (year: number) => request<Holiday[]>(`/api/reports/holidays?year=${year}`),
+  },
+
   audit: {
     list: (view: string, date: string) =>
       request<AuditItem[]>(`/api/audit/logs?view=${view}&date=${encodeURIComponent(date)}`),
@@ -245,6 +297,9 @@ export const api = {
       request<AdminEmployee>(`/api/admin/employees/${id}`, json("PATCH", body)),
     resetPin: (id: number) =>
       request<{ temp_pin: string }>(`/api/admin/employees/${id}/reset-pin`, { method: "POST" }),
+    createHoliday: (body: Holiday) => request<Holiday>("/api/admin/holidays", json("POST", body)),
+    deleteHoliday: (day: string) =>
+      request<{ ok: boolean }>(`/api/admin/holidays/${day}`, { method: "DELETE" }),
     schedules: () => request<Schedule[]>("/api/admin/schedules"),
     createSchedule: (body: Omit<Schedule, "id" | "is_default">) =>
       request<Schedule>("/api/admin/schedules", json("POST", body)),
