@@ -5,6 +5,7 @@ package retention
 import (
 	"context"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"dtr/server/internal/settings"
@@ -17,6 +18,8 @@ type Service struct {
 	pool     *pgxpool.Pool
 	store    storage.Store
 	settings *settings.Store
+
+	LastRun atomic.Int64 // unix time of the last completed check
 }
 
 func New(pool *pgxpool.Pool, store storage.Store, s *settings.Store) *Service {
@@ -26,6 +29,7 @@ func New(pool *pgxpool.Pool, store storage.Store, s *settings.Store) *Service {
 // RunOnce purges up to one batch and returns how many photos were removed.
 // A retention period of 0 means photos are kept.
 func (s *Service) RunOnce(ctx context.Context) (int, error) {
+	defer func() { s.LastRun.Store(time.Now().Unix()) }()
 	days := s.settings.Int(settings.PhotoRetentionDays)
 	if days <= 0 {
 		return 0, nil

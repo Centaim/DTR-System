@@ -3,7 +3,15 @@
 set -eu
 umask 077
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+record() { # keeps a line in the database so HR can see whether backups are working
+	psql -h db -U dtr -d dtr -q -c "INSERT INTO backup_runs (file, bytes, ok) VALUES ('$1', $2, $3)" >/dev/null 2>&1 || true
+}
+finish() {
+	status=$?
+	rm -rf "$work"
+	[ "$status" -eq 0 ] || record "" 0 false
+}
+trap finish EXIT
 
 stamp=$(date +%Y%m%d-%H%M%S)
 out="/backups/dtr-$stamp.tar.gpg"
@@ -20,4 +28,5 @@ chmod 644 "$out.part"
 mv "$out.part" "$out"
 
 find /backups -name 'dtr-*.tar.gpg' -mtime "+${BACKUP_KEEP_DAYS:-30}" -delete
+record "$(basename "$out")" "$(wc -c < "$out")" true
 echo "backup written: $(basename "$out") ($(du -h "$out" | cut -f1))"

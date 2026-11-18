@@ -9,6 +9,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"dtr/server/internal/attendance"
@@ -21,6 +22,7 @@ import (
 	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
+	"dtr/server/internal/retention"
 	"dtr/server/internal/schedule"
 	"dtr/server/internal/settings"
 	"dtr/server/internal/storage"
@@ -46,22 +48,27 @@ var allRoles = map[string]bool{
 }
 
 type API struct {
-	Pool       *pgxpool.Pool
-	Attendance *attendance.Service
-	Schedules  *schedule.Store
-	Requests   *requests.Store
-	PhotoAudit *photoaudit.Store
-	Holidays   *holidays.Store
-	Engage     *engage.Store
-	Calc       *dtrcalc.Service
-	Importer   *importer.Service
-	Kiosks     *kiosk.Store
-	Settings   *settings.Store
-	Reports    *reports.Service
-	Photos     storage.Store
-	JWTSecret  []byte
-	MaxPhotoMB int
-	Loc        *time.Location
+	Retention       *retention.Service
+	PhotoDir        string
+	PhotosEncrypted bool
+	Started         time.Time
+	remindersRan    atomic.Int64
+	Pool            *pgxpool.Pool
+	Attendance      *attendance.Service
+	Schedules       *schedule.Store
+	Requests        *requests.Store
+	PhotoAudit      *photoaudit.Store
+	Holidays        *holidays.Store
+	Engage          *engage.Store
+	Calc            *dtrcalc.Service
+	Importer        *importer.Service
+	Kiosks          *kiosk.Store
+	Settings        *settings.Store
+	Reports         *reports.Service
+	Photos          storage.Store
+	JWTSecret       []byte
+	MaxPhotoMB      int
+	Loc             *time.Location
 }
 
 type employee struct {
@@ -128,6 +135,7 @@ func (a *API) Routes(app *fiber.App) {
 	secured.Post("/me/mfa/confirm", rateLimit(), a.mfaConfirm)
 	secured.Get("/attendance/today", a.today)
 	secured.Post("/attendance/clock", a.clock)
+	a.complianceRoutes(secured)
 	a.engageRoutes(secured)
 	a.requestRoutes(secured)
 	a.dtrFlowRoutes(secured)
@@ -255,7 +263,7 @@ func (a *API) requireAuth(c *fiber.Ctx) error {
 	if !accepted && c.Path() != "/api/me" && c.Path() != "/api/me/pin" && c.Path() != "/api/me/privacy" {
 		return apiError(c, fiber.StatusForbidden, "privacy_required", "Read and accept the privacy notice to continue.")
 	}
-	if a.mfaNeeded(role, mfa) && !strings.HasPrefix(c.Path(), "/api/me") {
+	if a.mfaNeeded(role, mfa) && c.Path() != "/api/me" && c.Path() != "/api/me/pin" && c.Path() != "/api/me/privacy" && !strings.HasPrefix(c.Path(), "/api/me/mfa/") {
 		return apiError(c, fiber.StatusForbidden, "mfa_setup_required", "Set up two-step sign-in to continue.")
 	}
 	c.Locals("employee_id", id)
@@ -379,6 +387,7 @@ func (a *API) clock(c *fiber.Ctx) error {
 		DeviceID:       truncate(c.FormValue("device_id"), 100),
 		Offline:        c.FormValue("offline") == "true",
 		Channel:        "mobile",
+		FaceSeen:       faceSeen(c),
 	}
 	if v := c.FormValue("client_time"); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
@@ -437,3 +446,19 @@ func fmtHM(m int) string { return time.Date(2000, 1, 1, m/60, m%60, 0, 0, time.U
 func nowDate(loc *time.Location) string { return time.Now().In(loc).Format("2006-01-02") }
 
 func strconvID(id int64) string { return strconv.FormatInt(id, 10) }
+
+// faceSeen reads the device's face-in-frame result. It is advisory: a missing
+// value means the device could not run the check.
+func faceSeen(c *fiber.Ctx) *bool {
+	switch c.FormValue("face_seen") {
+	case "true":
+		v := true
+		return &v
+	case "false":
+		v := false
+		return &v
+	}
+	return nil
+}
+
+type reportRow = reports.Row

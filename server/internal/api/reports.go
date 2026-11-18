@@ -1,8 +1,8 @@
 package api
 
 import (
+	"encoding/csv"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -61,15 +61,6 @@ func (a *API) summary(c *fiber.Ctx) error {
 	return c.JSON(s)
 }
 
-// csvCell neutralises spreadsheet formulas: a cell that starts with = + - @
-// would run as a formula when opened in Excel.
-func csvCell(s string) string {
-	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
-		s = "'" + s
-	}
-	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-}
-
 func (a *API) summaryCSV(c *fiber.Ctx) error {
 	year, month, err := a.monthParam(c)
 	if err != nil {
@@ -81,17 +72,12 @@ func (a *API) summaryCSV(c *fiber.Ctx) error {
 	}
 	var b strings.Builder
 	b.WriteString("\xef\xbb\xbf") // lets Excel read UTF-8
-	b.WriteString("Employee no,Name,Office,Position,Days present,Late days,Absent days,Excused days,Undertime (min),Days to review,Days with corrections,Habitual tardiness\r\n")
+	cw := csv.NewWriter(&b)
+	_ = cw.Write(summaryHeader)
 	for _, r := range s.Rows {
-		habitual := "No"
-		if r.Habitual {
-			habitual = "Yes"
-		}
-		fmt.Fprintf(&b, "%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s\r\n",
-			csvCell(r.EmployeeNo), csvCell(r.Name), csvCell(r.Office), csvCell(r.Position),
-			r.PresentDays, r.LateDays, r.AbsentDays, r.ExcusedDays, r.UndertimeMin,
-			r.Incomplete, r.Adjusted, habitual)
+		_ = cw.Write(summaryCells(r))
 	}
+	cw.Flush()
 	a.audit(c, "report.export", "summary:"+s.Month)
 	c.Set("Content-Type", "text/csv; charset=utf-8")
 	c.Set("Content-Disposition", `attachment; filename="attendance-summary-`+s.Month+`.csv"`)

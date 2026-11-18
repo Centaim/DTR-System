@@ -399,6 +399,7 @@ func (a *API) RunReminders(ctx context.Context) {
 }
 
 func (a *API) remind(ctx context.Context) error {
+	defer a.remindersRan.Store(time.Now().Unix())
 	if err := a.Engage.Escalate(ctx, a.Settings.Int(settings.ApprovalEscalateDays)); err != nil {
 		return err
 	}

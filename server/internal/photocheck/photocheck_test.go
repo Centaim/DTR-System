@@ -77,3 +77,28 @@ func TestFlatImagesAreNotInformative(t *testing.T) {
 		t.Errorf("textured hash %x not informative", textured.DHash)
 	}
 }
+
+func TestBlurredPhotoScoresLow(t *testing.T) {
+	sharp := func(x, y int) uint8 {
+		if (x/6+y/6)%2 == 0 {
+			return 220
+		}
+		return 40
+	}
+	blurred := func(x, y int) uint8 {
+		var sum int
+		for dy := -12; dy <= 12; dy += 3 {
+			for dx := -12; dx <= 12; dx += 3 {
+				sum += int(sharp(x+dx+24, y+dy+24))
+			}
+		}
+		return uint8(sum / 81)
+	}
+	a, b := Analyze(encode(t, sharp)).Sharpness, Analyze(encode(t, blurred)).Sharpness
+	if a < 500 {
+		t.Errorf("sharp photo scored %.1f", a)
+	}
+	if b > 20 {
+		t.Errorf("blurred photo scored %.1f", b)
+	}
+}

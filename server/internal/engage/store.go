@@ -44,18 +44,19 @@ func NewStore(pool *pgxpool.Pool, mail Mailer, loc *time.Location) *Store {
 // ---- Notifications
 
 var subjects = map[string]string{
-	"request_filed":    "A request is waiting for your approval",
-	"request_approved": "Your request was approved",
-	"request_rejected": "Your request was rejected",
-	"dtr_submitted":    "A DTR is waiting for your verification",
-	"dtr_verified":     "Your DTR was verified",
-	"dtr_returned":     "Your DTR was returned for correction",
-	"accomp_returned":  "Your accomplishment report was returned",
-	"approval_overdue": "A request has been waiting too long",
-	"missed_log":       "You have a missing log",
-	"dtr_deadline":     "Please certify your DTR",
-	"announcement":     "New announcement",
-	"device_approved":  "Your new device was approved",
+	"request_filed":        "A request is waiting for your approval",
+	"request_approved":     "Your request was approved",
+	"request_rejected":     "Your request was rejected",
+	"dtr_submitted":        "A DTR is waiting for your verification",
+	"dtr_verified":         "Your DTR was verified",
+	"dtr_returned":         "Your DTR was returned for correction",
+	"accomp_returned":      "Your accomplishment report was returned",
+	"approval_overdue":     "A request has been waiting too long",
+	"missed_log":           "You have a missing log",
+	"dtr_deadline":         "Please certify your DTR",
+	"announcement":         "New announcement",
+	"device_approved":      "Your new device was approved",
+	"frequent_corrections": "An employee has filed many log corrections",
 }
 
 // Notify records an in-app alert and, when configured, sends an email in the

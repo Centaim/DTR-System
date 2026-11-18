@@ -164,6 +164,36 @@ func (s *Store) Create(ctx context.Context, employeeID int64, in Input) (Request
 	return r, err
 }
 
+// CorrectionCount counts the missed-log requests an employee filed for a month.
+// Logbook entries are excluded because an outage is not the employee's doing.
+func (s *Store) CorrectionCount(ctx context.Context, employeeID int64, day string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM requests WHERE employee_id=$1 AND kind='missed_log' AND source='employee'
+		AND status IN ('pending','approved') AND date_trunc('month', work_date) = date_trunc('month', $2::date)`, employeeID, day).Scan(&n)
+	return n, err
+}
+
+// CorrectionsByEmployee counts the same thing for every employee in a month.
+func (s *Store) CorrectionsByEmployee(ctx context.Context, year int, month time.Month) (map[int64]int, error) {
+	rows, err := s.pool.Query(ctx, `SELECT employee_id, count(*)::int FROM requests WHERE kind='missed_log' AND source='employee'
+		AND status IN ('pending','approved') AND work_date >= $1::date AND work_date < ($1::date + interval '1 month')
+		GROUP BY employee_id`, time.Date(year, month, 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]int{}
+	for rows.Next() {
+		var id int64
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}
+
 // Owner returns who filed a request.
 func (s *Store) Owner(ctx context.Context, id int64) (int64, error) {
 	var emp int64

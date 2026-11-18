@@ -9,6 +9,7 @@ import (
 
 	"dtr/server/internal/dtrcalc"
 	"dtr/server/internal/holidays"
+	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
 	"dtr/server/internal/settings"
 
@@ -18,30 +19,33 @@ import (
 type Service struct {
 	pool     *pgxpool.Pool
 	calc     *dtrcalc.Service
+	reqs     *requests.Store
 	sched    *schedule.Store
 	hol      *holidays.Store
 	loc      *time.Location
 	settings *settings.Store
 }
 
-func NewService(pool *pgxpool.Pool, calc *dtrcalc.Service,
+func NewService(pool *pgxpool.Pool, calc *dtrcalc.Service, reqs *requests.Store,
 	sched *schedule.Store, hol *holidays.Store, loc *time.Location, cfg *settings.Store) *Service {
-	return &Service{pool: pool, calc: calc, sched: sched, hol: hol, loc: loc, settings: cfg}
+	return &Service{pool: pool, calc: calc, reqs: reqs, sched: sched, hol: hol, loc: loc, settings: cfg}
 }
 
 type Row struct {
-	EmployeeNo   string `json:"employee_no"`
-	Name         string `json:"name"`
-	Office       string `json:"office"`
-	Position     string `json:"position"`
-	PresentDays  int    `json:"present_days"`
-	LateDays     int    `json:"late_days"`
-	AbsentDays   int    `json:"absent_days"`
-	ExcusedDays  int    `json:"excused_days"` // approved leave, official business, travel order
-	UndertimeMin int    `json:"undertime_min"`
-	Incomplete   int    `json:"incomplete_days"`
-	Adjusted     int    `json:"adjusted_days"`
-	Habitual     bool   `json:"habitual_late"`
+	EmployeeNo          string `json:"employee_no"`
+	Name                string `json:"name"`
+	Office              string `json:"office"`
+	Position            string `json:"position"`
+	PresentDays         int    `json:"present_days"`
+	LateDays            int    `json:"late_days"`
+	AbsentDays          int    `json:"absent_days"`
+	ExcusedDays         int    `json:"excused_days"` // approved leave, official business, travel order
+	UndertimeMin        int    `json:"undertime_min"`
+	Incomplete          int    `json:"incomplete_days"`
+	Adjusted            int    `json:"adjusted_days"`
+	Habitual            bool   `json:"habitual_late"`
+	Corrections         int    `json:"corrections"`
+	FrequentCorrections bool   `json:"frequent_corrections"`
 }
 
 type Summary struct {
@@ -99,6 +103,12 @@ func (s *Service) Summary(ctx context.Context, year int, month time.Month, offic
 		return Summary{}, err
 	}
 
+	corrections, err := s.reqs.CorrectionsByEmployee(ctx, year, month)
+	if err != nil {
+		return Summary{}, err
+	}
+	limit := s.settings.Int(settings.FlagCorrectionLimit)
+
 	for _, e := range emps {
 		res, err := s.calc.Month(ctx, e.id, e.office, year, month)
 		if err != nil {
@@ -131,6 +141,8 @@ func (s *Service) Summary(ctx context.Context, year int, month time.Month, offic
 			}
 		}
 		r.Habitual = r.LateDays >= out.HabitualThreshold
+		r.Corrections = corrections[e.id]
+		r.FrequentCorrections = r.Corrections >= limit
 		out.Rows = append(out.Rows, r)
 	}
 	return out, nil

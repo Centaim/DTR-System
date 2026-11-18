@@ -53,6 +53,7 @@ type ClockInput struct {
 	DeviceID       string
 	Offline        bool
 	Channel        string
+	FaceSeen       *bool // the device looked for a face in the photo; nil means it could not check
 }
 
 // FlagRules are the thresholds for anomaly flags. Flags only inform HR; they
@@ -252,6 +253,13 @@ func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, 
 
 	if pc.Decoded && pc.Luma < rules.DarkLuma {
 		found = append(found, finding{"dark_photo", fmt.Sprintf("Average brightness %.0f of 255", pc.Luma)})
+	}
+
+	if pc.Decoded && pc.Luma >= rules.DarkLuma && pc.Sharpness < float64(s.settings.Int(settings.FlagBlurThreshold)) {
+		found = append(found, finding{"blurry_photo", fmt.Sprintf("Sharpness %.0f", pc.Sharpness)})
+	}
+	if in.FaceSeen != nil && !*in.FaceSeen {
+		found = append(found, finding{"no_face", "The device could not find a face in this photo"})
 	}
 
 	rows, err := tx.Query(ctx, `

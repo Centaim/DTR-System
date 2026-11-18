@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
 	"dtr/server/internal/requests"
+	"dtr/server/internal/settings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -44,6 +46,9 @@ func (a *API) createRequest(c *fiber.Ctx) error {
 	}
 	a.audit(c, "request.create", "request:"+strconv.FormatInt(r.ID, 10))
 	a.Engage.NotifyApprovers(c.Context(), actorID(c), "request_filed", r.WorkDate)
+	if r.Kind == "missed_log" {
+		a.watchCorrections(c.Context(), actorID(c), r.WorkDate)
+	}
 	return c.Status(fiber.StatusCreated).JSON(r)
 }
 
@@ -96,4 +101,18 @@ func (a *API) decideRequest(c *fiber.Ctx) error {
 		a.Engage.Notify(c.Context(), owner, "request_"+r.Status, r.WorkDate, "")
 	}
 	return c.JSON(r)
+}
+
+// watchCorrections tells HR, once a month per employee, when corrections pile up.
+// It only prompts a review; it never changes a record.
+func (a *API) watchCorrections(ctx context.Context, employeeID int64, day string) {
+	n, err := a.Requests.CorrectionCount(ctx, employeeID, day)
+	if err != nil || n < a.Settings.Int(settings.FlagCorrectionLimit) {
+		return
+	}
+	var name string
+	if err := a.Pool.QueryRow(ctx, `SELECT full_name FROM employees WHERE id=$1`, employeeID).Scan(&name); err != nil {
+		return
+	}
+	a.Engage.NotifyRole(ctx, "frequent_corrections", name+" "+day[:7], "corrections:"+strconv.FormatInt(employeeID, 10)+":"+day[:7])
 }

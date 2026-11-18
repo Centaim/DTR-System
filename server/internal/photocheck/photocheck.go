@@ -12,9 +12,10 @@ import (
 )
 
 type Result struct {
-	Decoded bool
-	Luma    float64 // mean brightness, 0 to 255
-	DHash   uint64
+	Decoded   bool
+	Luma      float64 // mean brightness, 0 to 255
+	DHash     uint64
+	Sharpness float64 // variance of edges; low means blurred
 }
 
 // Analyze returns zero Result{Decoded:false} for formats it cannot decode
@@ -28,7 +29,7 @@ func Analyze(data []byte) Result {
 	if b.Dx() < 9 || b.Dy() < 8 {
 		return Result{}
 	}
-	return Result{Decoded: true, Luma: meanLuma(img), DHash: dhash(img)}
+	return Result{Decoded: true, Luma: meanLuma(img), DHash: dhash(img), Sharpness: sharpness(img)}
 }
 
 func luma(img image.Image, x, y int) float64 {
@@ -97,4 +98,30 @@ func Distance(a, b uint64) int { return bits.OnesCount64(a ^ b) }
 func Informative(h uint64) bool {
 	n := bits.OnesCount64(h)
 	return n >= 8 && n <= 56
+}
+
+// sharpness is the variance of the Laplacian on a small copy of the photo. Sharp
+// photos have strong edges and score high; blurred photos score low.
+func sharpness(img image.Image) float64 {
+	b := img.Bounds()
+	const w = 160
+	h := max(16, w*b.Dy()/b.Dx())
+	gray := make([]float64, w*h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			gray[y*w+x] = blockMean(img, x, y, w, h)
+		}
+	}
+	var sum, sq float64
+	var n int
+	for y := 1; y < h-1; y++ {
+		for x := 1; x < w-1; x++ {
+			l := gray[(y-1)*w+x] + gray[(y+1)*w+x] + gray[y*w+x-1] + gray[y*w+x+1] - 4*gray[y*w+x]
+			sum += l
+			sq += l * l
+			n++
+		}
+	}
+	mean := sum / float64(n)
+	return sq/float64(n) - mean*mean
 }

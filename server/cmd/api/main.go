@@ -100,7 +100,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go retention.New(pool, store, appSettings).Loop(ctx)
+	retentionJob := retention.New(pool, store, appSettings)
+	go retentionJob.Loop(ctx)
 
 	app := fiber.New(fiber.Config{
 		// Behind a proxy, rate limits must count real clients, not the proxy.
@@ -110,7 +111,7 @@ func main() {
 		ProxyHeader:             proxyHeader(cfg.TrustedProxies),
 		BodyLimit:               (cfg.MaxPhotoMB + 1) << 20,
 		ReadTimeout:             15 * time.Second,
-		WriteTimeout:            15 * time.Second,
+		WriteTimeout:            5 * time.Minute, // evidence archives can be large
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			var fe *fiber.Error
 			if errors.As(err, &fe) {
@@ -137,22 +138,26 @@ func main() {
 
 	engageStore := engage.NewStore(pool, engage.Mailer{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser, Pass: cfg.SMTPPass, From: cfg.SMTPFrom}, loc)
 	server := &api.API{
-		Pool:       pool,
-		Attendance: attSvc,
-		Schedules:  schedStore,
-		Requests:   reqStore,
-		PhotoAudit: photoaudit.NewStore(pool),
-		Calc:       calc,
-		Engage:     engageStore,
-		Holidays:   holStore,
-		Importer:   importer.NewService(pool),
-		Kiosks:     kiosk.NewStore(pool),
-		Settings:   appSettings,
-		Reports:    reports.NewService(pool, calc, schedStore, holStore, loc, appSettings),
-		Photos:     store,
-		JWTSecret:  cfg.JWTSecret,
-		MaxPhotoMB: cfg.MaxPhotoMB,
-		Loc:        loc,
+		Retention:       retentionJob,
+		PhotoDir:        cfg.PhotoDir,
+		PhotosEncrypted: cfg.PhotoKey != nil,
+		Started:         time.Now(),
+		Pool:            pool,
+		Attendance:      attSvc,
+		Schedules:       schedStore,
+		Requests:        reqStore,
+		PhotoAudit:      photoaudit.NewStore(pool),
+		Calc:            calc,
+		Engage:          engageStore,
+		Holidays:        holStore,
+		Importer:        importer.NewService(pool),
+		Kiosks:          kiosk.NewStore(pool),
+		Settings:        appSettings,
+		Reports:         reports.NewService(pool, calc, reqStore, schedStore, holStore, loc, appSettings),
+		Photos:          store,
+		JWTSecret:       cfg.JWTSecret,
+		MaxPhotoMB:      cfg.MaxPhotoMB,
+		Loc:             loc,
 	}
 	server.Routes(app)
 	go server.RunReminders(ctx)

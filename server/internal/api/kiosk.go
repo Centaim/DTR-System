@@ -127,7 +127,7 @@ func (a *API) kioskClock(c *fiber.Ctx) error {
 	}
 
 	l, replay, err := a.Attendance.Clock(c.Context(), empID, attendance.ClockInput{
-		IdempotencyKey: key, Photo: photo, Channel: "kiosk",
+		IdempotencyKey: key, Photo: photo, Channel: "kiosk", FaceSeen: faceSeen(c),
 		DeviceID: "kiosk:" + strconvID(kioskID),
 	})
 	switch {

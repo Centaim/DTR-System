@@ -27,6 +27,8 @@ const (
 	PINMaxAttempts       = "pin_max_attempts"
 	PINLockMinutes       = "pin_lock_minutes"
 	FlagDarkLuma         = "flag_dark_luma"
+	FlagBlurThreshold    = "flag_blur_threshold"
+	FlagCorrectionLimit  = "flag_correction_limit"
 	FlagSimilarBits      = "flag_similar_bits"
 	FlagSkewMinutes      = "flag_skew_minutes"
 	FlagLateSyncMins     = "flag_late_sync_minutes"
@@ -59,6 +61,8 @@ func Definitions(defaults map[string]int) []Definition {
 		{GeofenceMode, "mobile", 0, 0, 2},
 		{DeviceBindingMode, "mobile", 1, 0, 2},
 		{FlagDarkLuma, "flags", 45, 0, 255},
+		{FlagBlurThreshold, "flags", 20, 0, 500},
+		{FlagCorrectionLimit, "flags", 5, 1, 31},
 		{FlagSimilarBits, "flags", 2, 0, 16},
 		{FlagSkewMinutes, "flags", 5, 1, 1440},
 		{FlagLateSyncMins, "flags", 120, 1, 10080},
