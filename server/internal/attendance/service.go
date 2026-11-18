@@ -36,11 +36,12 @@ type Log struct {
 }
 
 type Today struct {
-	WorkDate string   `json:"work_date"`
-	Logs     []Log    `json:"logs"`
-	NextSlot *string  `json:"next_slot"`
-	Slots    []string `json:"slots"`
-	Now      string   `json:"server_time"`
+	WorkDate       string   `json:"work_date"`
+	Logs           []Log    `json:"logs"`
+	NextSlot       *string  `json:"next_slot"`
+	Slots          []string `json:"slots"`
+	LocationWanted bool     `json:"location_wanted"`
+	Now            string   `json:"server_time"`
 }
 
 type ClockInput struct {
@@ -156,7 +157,7 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	// Serialize clock-ins per employee so the slot count cannot race.
-	if _, err := tx.Exec(ctx, `SELECT 1 FROM employees WHERE id = $1 FOR UPDATE`, employeeID); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM employees WHERE id = $1 FOR NO KEY UPDATE`, employeeID); err != nil {
 		return Log{}, false, err
 	}
 
@@ -191,6 +192,15 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 		return Log{}, false, ErrTooSoon
 	}
 
+	channelName := in.Channel
+	if channelName == "" {
+		channelName = "mobile"
+	}
+	guarded, err := s.guard(ctx, tx, employeeID, in, channelName)
+	if err != nil {
+		return Log{}, false, err
+	}
+
 	key, err := photoKey(workDate, employeeID)
 	if err != nil {
 		return Log{}, false, err
@@ -219,7 +229,7 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 		}
 		return Log{}, false, err
 	}
-	if err := s.flag(ctx, tx, employeeID, l, in, channel, pc, sum); err != nil {
+	if err := s.flag(ctx, tx, employeeID, l, in, channel, pc, sum, guarded); err != nil {
 		return Log{}, false, fmt.Errorf("flag log: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -236,10 +246,9 @@ func dhashArg(pc photocheck.Result) any {
 }
 
 // flag records anomaly flags for a new log, in the same transaction as the log.
-func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, in ClockInput, channel string, pc photocheck.Result, sha string) error {
+func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, in ClockInput, channel string, pc photocheck.Result, sha string, guarded []finding) error {
 	rules := s.flagRules()
-	type finding struct{ kind, detail string }
-	var found []finding
+	found := append([]finding{}, guarded...)
 
 	if pc.Decoded && pc.Luma < rules.DarkLuma {
 		found = append(found, finding{"dark_photo", fmt.Sprintf("Average brightness %.0f of 255", pc.Luma)})
@@ -332,7 +341,8 @@ func (s *Service) Today(ctx context.Context, employeeID int64) (Today, error) {
 	defer rows.Close()
 
 	slots := hours.Slots()
-	t := Today{WorkDate: day, Logs: []Log{}, Slots: slots, Now: now.UTC().Format(time.RFC3339)}
+	t := Today{WorkDate: day, Logs: []Log{}, Slots: slots, Now: now.UTC().Format(time.RFC3339),
+		LocationWanted: s.settings.Int(settings.GeofenceMode) != modeOff}
 	for rows.Next() {
 		l, err := scanLog(rows)
 		if err != nil {

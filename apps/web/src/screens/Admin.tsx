@@ -10,13 +10,14 @@ import { ActivityTab } from "./admin/ActivityTab";
 import { KiosksTab } from "./admin/KiosksTab";
 import { SettingsTab } from "./admin/SettingsTab";
 import { TrackerTab } from "./admin/TrackerTab";
+import { LocationsTab } from "./admin/LocationsTab";
 
 export function Admin({ employee }: { employee: Employee }) {
   const { t } = useT();
   const manager = employee.role === "hr_admin" || employee.role === "super_admin";
-  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports" | "activity" | "kiosks" | "settings" | "tracker";
+  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports" | "activity" | "kiosks" | "settings" | "tracker" | "locations";
   const tabs: Tab[] = manager
-    ? ["dashboard", "tracker", "employees", "schedules", "kiosks", "audit", "reports", "activity", "settings"]
+    ? ["dashboard", "tracker", "employees", "schedules", "kiosks", "locations", "audit", "reports", "activity", "settings"]
     : ["dashboard", "tracker", "audit", "reports", "activity"];
   const [tab, setTab] = useState<Tab>("dashboard");
   const labels: Record<Tab, string> = {
@@ -29,6 +30,7 @@ export function Admin({ employee }: { employee: Employee }) {
     kiosks: t.tabKiosks,
     settings: t.tabSettings,
     tracker: t.tabTracker,
+    locations: t.tabLocations,
   };
   const label = (k: Tab) => labels[k];
 
@@ -65,6 +67,8 @@ export function Admin({ employee }: { employee: Employee }) {
             <ReportsTab />
           ) : tab === "activity" ? (
             <ActivityTab />
+          ) : tab === "locations" ? (
+            <LocationsTab />
           ) : tab === "tracker" ? (
             <TrackerTab canReopen={manager} />
           ) : tab === "settings" ? (

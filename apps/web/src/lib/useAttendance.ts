@@ -4,6 +4,18 @@ import { queue, type QueueItem } from "./queue";
 
 const DEFAULT_SLOTS = ["am_in", "am_out", "pm_in", "pm_out"];
 
+/** Reads the position once. A refusal or timeout returns nothing and the server decides. */
+function currentPosition(): Promise<{ latitude: number; longitude: number } | null> {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+    );
+  });
+}
+
 export type RowState = "synced" | "pending" | "empty";
 
 export interface Row {
@@ -66,6 +78,8 @@ export function useAttendance() {
             clientTime: item.clientTime,
             offline: true,
             deviceId: item.deviceId,
+            latitude: item.latitude,
+            longitude: item.longitude,
           });
           await queue.remove(item.key);
         } catch (e) {
@@ -122,6 +136,8 @@ export function useAttendance() {
       setBusy(true);
       const key = crypto.randomUUID();
       const clientTime = new Date().toISOString();
+      const place = s.today?.location_wanted ? await currentPosition() : null;
+      const where = place ?? {};
       try {
         const { log } = await api.clock({
           key,
@@ -129,6 +145,7 @@ export function useAttendance() {
           clientTime,
           offline: false,
           deviceId: deviceId(),
+          ...where,
         });
         setFreshSlot(log.slot);
         await refresh();
@@ -141,6 +158,7 @@ export function useAttendance() {
             photo,
             clientTime,
             deviceId: deviceId(),
+            ...where,
             createdAt: Date.now(),
             status: "pending",
           });
@@ -157,7 +175,7 @@ export function useAttendance() {
         setBusy(false);
       }
     },
-    [nextSlot, refresh],
+    [nextSlot, refresh, s.today?.location_wanted],
   );
 
   const dismiss = useCallback(

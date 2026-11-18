@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ApiError, api, type LegalHold, type SettingRow } from "../../lib/api";
 import { useT, type Strings } from "../../lib/i18n";
 
-const GROUPS = ["attendance", "security", "privacy", "flags"] as const;
+const GROUPS = ["attendance", "mobile", "security", "privacy", "flags"] as const;
 const setLabel = (t: Strings, k: string) => (t[`set_${k}` as keyof Strings] as string) ?? k;
 const groupLabel = (t: Strings, g: string) => t[`group_${g}` as keyof Strings] as string;
 

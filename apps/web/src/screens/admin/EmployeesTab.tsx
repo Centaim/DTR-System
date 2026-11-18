@@ -172,6 +172,7 @@ function EmployeeForm({
     role: emp?.role ?? "employee",
     employment: emp?.employment ?? "plantilla",
     supervisor_id: emp?.supervisor_id ?? 0,
+    clock_channels: emp?.clock_channels ?? 3,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -196,6 +197,7 @@ function EmployeeForm({
         office: f.office,
         employment: f.employment,
         supervisor_id: f.supervisor_id,
+        clock_channels: f.clock_channels,
       };
       if (!self) body.role = f.role;
       if (emp) {
@@ -293,6 +295,17 @@ function EmployeeForm({
             ))}
           </select>
         </label>
+
+        {emp && (
+          <label className="field">
+            <span>{t.channelsLabel}</span>
+            <select value={f.clock_channels} disabled={locked} onChange={(e) => setF({ ...f, clock_channels: Number(e.target.value) })}>
+              <option value={3}>{t.channels_3}</option>
+              <option value={1}>{t.channels_1}</option>
+              <option value={2}>{t.channels_2}</option>
+            </select>
+          </label>
+        )}
 
         <div aria-live="polite">{error && <p className="msg bad">{error}</p>}</div>
         <button className="btn primary" type="submit" disabled={busy || locked || !f.full_name.trim() || !f.employee_no.trim()}>

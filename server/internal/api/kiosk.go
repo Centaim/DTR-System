@@ -131,6 +131,8 @@ func (a *API) kioskClock(c *fiber.Ctx) error {
 		DeviceID: "kiosk:" + strconvID(kioskID),
 	})
 	switch {
+	case errors.Is(err, attendance.ErrChannel):
+		return apiError(c, fiber.StatusForbidden, "channel_blocked", "You cannot clock in here. Use the channel HR assigned to you.")
 	case errors.Is(err, attendance.ErrBadPhoto):
 		return apiError(c, fiber.StatusUnprocessableEntity, "bad_photo", "The photo could not be read. Take it again.")
 	case errors.Is(err, attendance.ErrDayComplete):

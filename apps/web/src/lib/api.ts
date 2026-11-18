@@ -22,6 +22,7 @@ export interface AdminEmployee {
   active: boolean;
   supervisor_id: number | null;
   schedule: string | null;
+  clock_channels: number;
 }
 
 export interface EmployeeInput {
@@ -33,6 +34,7 @@ export interface EmployeeInput {
   employment?: string;
   active?: boolean;
   supervisor_id?: number;
+  clock_channels?: number;
 }
 
 export interface Schedule {
@@ -197,6 +199,23 @@ export interface LegalHold {
   created_at: string;
 }
 
+export interface Geofence {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius_m: number;
+  office: string;
+}
+
+export interface DeviceRequest {
+  id: number;
+  employee_no: string;
+  name: string;
+  device_id: string;
+  requested_at: string;
+}
+
 export interface LogEntry {
   id: number;
   slot: string;
@@ -210,6 +229,7 @@ export interface Today {
   logs: LogEntry[];
   next_slot: string | null;
   slots: string[];
+  location_wanted: boolean;
   server_time: string;
 }
 
@@ -435,6 +455,12 @@ export const api = {
     createSuspension: (body: Omit<Suspension, "id">) =>
       request<{ ok: boolean }>("/api/admin/suspensions", json("POST", body)),
     deleteSuspension: (id: number) => request<{ ok: boolean }>(`/api/admin/suspensions/${id}`, { method: "DELETE" }),
+    geofences: () => request<Geofence[]>("/api/admin/geofences"),
+    createGeofence: (body: Omit<Geofence, "id">) => request<{ ok: boolean }>("/api/admin/geofences", json("POST", body)),
+    deleteGeofence: (id: number) => request<{ ok: boolean }>(`/api/admin/geofences/${id}`, { method: "DELETE" }),
+    deviceRequests: () => request<DeviceRequest[]>("/api/admin/device-requests"),
+    decideDevice: (id: number, approve: boolean) =>
+      request<{ ok: boolean }>(`/api/admin/device-requests/${id}/${approve ? "approve" : "reject"}`, { method: "POST" }),
     createHoliday: (body: Holiday) => request<Holiday>("/api/admin/holidays", json("POST", body)),
     deleteHoliday: (day: string) =>
       request<{ ok: boolean }>(`/api/admin/holidays/${day}`, { method: "DELETE" }),

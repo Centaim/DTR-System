@@ -125,6 +125,7 @@ func (a *API) Routes(app *fiber.App) {
 	a.adminRoutes(adminGroup)
 	a.holidayAdminRoutes(adminGroup)
 	a.governanceRoutes(adminGroup)
+	a.locationRoutes(adminGroup)
 }
 
 // dummyHash makes unknown employee numbers cost the same as wrong PINs.
@@ -361,6 +362,14 @@ func (a *API) clock(c *fiber.Ctx) error {
 
 	l, replay, err := a.Attendance.Clock(c.Context(), actorID(c), in)
 	switch {
+	case errors.Is(err, attendance.ErrChannel):
+		return apiError(c, fiber.StatusForbidden, "channel_blocked", "You cannot clock in here. Use the channel HR assigned to you.")
+	case errors.Is(err, attendance.ErrDevice):
+		return apiError(c, fiber.StatusForbidden, "device_pending", "This device is waiting for HR approval. Ask HR to approve it.")
+	case errors.Is(err, attendance.ErrOutOfArea):
+		return apiError(c, fiber.StatusForbidden, "out_of_area", "You are outside the allowed clock-in area.")
+	case errors.Is(err, attendance.ErrNeedsLocation):
+		return apiError(c, fiber.StatusForbidden, "location_required", "Turn on location for this app, then try again.")
 	case errors.Is(err, attendance.ErrBadPhoto):
 		return apiError(c, fiber.StatusUnprocessableEntity, "bad_photo", "The photo could not be read. Take it again.")
 	case errors.Is(err, attendance.ErrDayComplete):

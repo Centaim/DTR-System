@@ -13,6 +13,8 @@ import (
 
 const (
 	DTREarlySubmit     = "dtr_allow_early_submit"
+	GeofenceMode       = "geofence_mode"
+	DeviceBindingMode  = "device_binding_mode"
 	PhotoRetentionDays = "photo_retention_days"
 	PrivacyVersion     = "privacy_notice_version"
 	MinGapSeconds      = "min_gap_seconds"
@@ -46,6 +48,8 @@ func Definitions(defaults map[string]int) []Definition {
 		{PINLockMinutes, "security", 10, 1, 1440},
 		{PhotoRetentionDays, "privacy", 0, 0, 3650},
 		{PrivacyVersion, "privacy", 1, 1, 1000},
+		{GeofenceMode, "mobile", 0, 0, 2},
+		{DeviceBindingMode, "mobile", 1, 0, 2},
 		{FlagDarkLuma, "flags", 45, 0, 255},
 		{FlagSimilarBits, "flags", 2, 0, 16},
 		{FlagSkewMinutes, "flags", 5, 1, 1440},

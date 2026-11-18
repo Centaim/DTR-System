@@ -6,6 +6,8 @@ export interface QueueItem {
   photo: Blob;
   clientTime: string;
   deviceId: string;
+  latitude?: number;
+  longitude?: number;
   createdAt: number;
   status: "pending" | "rejected";
   reason?: string;

@@ -30,16 +30,17 @@ func canManage(actor, target string) bool {
 }
 
 type adminEmployee struct {
-	ID           int64   `json:"id"`
-	EmployeeNo   string  `json:"employee_no"`
-	FullName     string  `json:"full_name"`
-	Position     string  `json:"position"`
-	Office       string  `json:"office"`
-	Role         string  `json:"role"`
-	Employment   string  `json:"employment"`
-	Active       bool    `json:"active"`
-	SupervisorID *int64  `json:"supervisor_id"`
-	Schedule     *string `json:"schedule"`
+	ID            int64   `json:"id"`
+	EmployeeNo    string  `json:"employee_no"`
+	FullName      string  `json:"full_name"`
+	Position      string  `json:"position"`
+	Office        string  `json:"office"`
+	Role          string  `json:"role"`
+	Employment    string  `json:"employment"`
+	Active        bool    `json:"active"`
+	SupervisorID  *int64  `json:"supervisor_id"`
+	Schedule      *string `json:"schedule"`
+	ClockChannels int     `json:"clock_channels"`
 }
 
 const adminCols = `e.id, e.employee_no, e.full_name, e.position, e.office, e.role::text,
@@ -48,12 +49,12 @@ const adminCols = `e.id, e.employee_no, e.full_name, e.position, e.office, e.rol
 	  (SELECT s.name FROM schedule_assignments a JOIN schedules s ON s.id = a.schedule_id
 	    WHERE a.employee_id = e.id AND a.effective_from <= (now() AT TIME ZONE 'Asia/Manila')::date
 	    ORDER BY a.effective_from DESC LIMIT 1),
-	  (SELECT name FROM schedules WHERE is_default))`
+	  (SELECT name FROM schedules WHERE is_default)), e.clock_channels`
 
 func scanAdmin(row pgx.Row) (adminEmployee, error) {
 	var e adminEmployee
 	err := row.Scan(&e.ID, &e.EmployeeNo, &e.FullName, &e.Position, &e.Office, &e.Role,
-		&e.Employment, &e.Active, &e.SupervisorID, &e.Schedule)
+		&e.Employment, &e.Active, &e.SupervisorID, &e.Schedule, &e.ClockChannels)
 	return e, err
 }
 
@@ -93,14 +94,15 @@ func (a *API) listEmployees(c *fiber.Ctx) error {
 }
 
 type employeeInput struct {
-	EmployeeNo   *string `json:"employee_no"`
-	FullName     *string `json:"full_name"`
-	Position     *string `json:"position"`
-	Office       *string `json:"office"`
-	Role         *string `json:"role"`
-	Employment   *string `json:"employment"`
-	Active       *bool   `json:"active"`
-	SupervisorID *int64  `json:"supervisor_id"` // 0 clears the supervisor
+	EmployeeNo    *string `json:"employee_no"`
+	FullName      *string `json:"full_name"`
+	Position      *string `json:"position"`
+	Office        *string `json:"office"`
+	Role          *string `json:"role"`
+	Employment    *string `json:"employment"`
+	Active        *bool   `json:"active"`
+	SupervisorID  *int64  `json:"supervisor_id"` // 0 clears the supervisor
+	ClockChannels *int    `json:"clock_channels"`
 }
 
 func clean(p *string, max int) (*string, bool) {
@@ -222,6 +224,9 @@ func (a *API) updateEmployee(c *fiber.Ctx) error {
 			return apiError(c, fiber.StatusForbidden, "forbidden", "You cannot change your own role.")
 		}
 	}
+	if in.ClockChannels != nil && (*in.ClockChannels < 1 || *in.ClockChannels > 3) {
+		return apiError(c, fiber.StatusUnprocessableEntity, "invalid", "Choose at least one clock-in channel.")
+	}
 	if in.Employment != nil && !employmentTypes[*in.Employment] {
 		return apiError(c, fiber.StatusUnprocessableEntity, "invalid", "Choose a valid employment type.")
 	}
@@ -242,10 +247,11 @@ func (a *API) updateEmployee(c *fiber.Ctx) error {
 		    employment    = COALESCE($6::employment_status, employment),
 		    active        = COALESCE($7, active),
 		    supervisor_id = CASE WHEN $8::bigint IS NULL THEN supervisor_id
-		                         WHEN $8::bigint = 0 THEN NULL ELSE $8::bigint END
+		                         WHEN $8::bigint = 0 THEN NULL ELSE $8::bigint END,
+		    clock_channels = COALESCE($9, clock_channels)
 		  WHERE id = $1 RETURNING *)
 		SELECT `+adminCols+` FROM upd e`,
-		id, name, pos, office, in.Role, in.Employment, in.Active, in.SupervisorID))
+		id, name, pos, office, in.Role, in.Employment, in.Active, in.SupervisorID, in.ClockChannels))
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
