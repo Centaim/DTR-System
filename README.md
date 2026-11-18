@@ -49,19 +49,20 @@ For staff without a suitable phone. HR registers a kiosk under **HR admin > Kios
 
 ## Mobile app (Tauri 2, Android)
 
-`apps/mobile` wraps the same web app for Android. The Rust side builds today; the Android package has **not** been built or run yet.
+`apps/mobile` wraps the same web app for Android. On first launch the app asks for the agency's server address.
 
-**Needs a Java compiler.** Gradle needs a JDK 17 or 21 (a JRE alone is not enough). On Fedora: `sudo dnf install java-21-openjdk-devel`. With only Java 25 the generated Gradle 8.14 fails with "Unsupported class file major version 69".
+Builds need a JDK 17 or 21 with the compiler. Java 25 does not work with the generated Gradle.
 
 ```sh
 export ANDROID_HOME=$HOME/Android/Sdk NDK_HOME=$ANDROID_HOME/ndk/<version> JAVA_HOME=<a JDK 17 or 21>
-export VITE_API_URL=http://10.0.2.2:8080      # the emulator's address for your computer
-cd apps/mobile && cargo tauri android build --debug --target x86_64 --apk
+cd apps/mobile && cargo tauri android build --debug --target aarch64 --target x86_64 --apk
 ```
 
-The API must allow the app's origin: run it with `CORS_ORIGINS=http://localhost:5173,http://tauri.localhost`.
+The APK is written to `apps/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/`. A debug build allows plain `http://` addresses for testing. A release build needs HTTPS and a signing key.
 
-The camera permission is declared in the manifest. Whether the Android WebView grants the live camera to the page is the first thing to test; it may need a small native Kotlin handler. The Tauri default icons are placeholders.
+The API must allow the app's origin: `CORS_ORIGINS=http://localhost:5173,http://tauri.localhost` (the production install sets this).
+
+**Not yet tested on a device.** The camera, location prompt and offline sync must be checked on a real Android phone.
 
 ## API settings
 

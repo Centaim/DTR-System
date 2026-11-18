@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../lib/api";
+import { apiBase } from "../lib/api";
 import { LangContext, initialLang, strings, useT, type Strings } from "../lib/i18n";
 import { monthLabel } from "../lib/month";
 
@@ -16,7 +16,7 @@ function Body({ code }: { code: string }) {
   const { t } = useT();
   const [r, setR] = useState<Result | "bad" | null>(null);
   useEffect(() => {
-    fetch(`${API_BASE}/api/public/verify/${encodeURIComponent(code)}`)
+    fetch(`${apiBase()}/api/public/verify/${encodeURIComponent(code)}`)
       .then((x) => (x.ok ? x.json() : "bad"))
       .then(setR)
       .catch(() => setR("bad"));

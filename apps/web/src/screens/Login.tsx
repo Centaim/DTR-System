@@ -6,9 +6,11 @@ import { LangSwitch } from "../components/LangSwitch";
 export function Login({
   onSignedIn,
   notice,
+  onChangeServer,
 }: {
   onSignedIn: (e: Employee) => void;
   notice?: string;
+  onChangeServer?: () => void;
 }) {
   const { t } = useT();
   const [no, setNo] = useState("");
@@ -129,6 +131,7 @@ export function Login({
         </form>
         <div className="foot-row">
           <LangSwitch />
+          {onChangeServer && <button type="button" className="link-btn" onClick={onChangeServer}>{t.serverChange}</button>}
           <span className="muted small">{t.demoNote}</span>
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { API_BASE, ApiError, NetworkError } from "./api";
+import { apiBase, ApiError, NetworkError } from "./api";
 
 const KEY = "dtr.kiosk.token";
 
@@ -27,7 +27,7 @@ async function call<T>(path: string, init: RequestInit = {}, token = memory ?? k
   if (token) headers.set("X-Kiosk-Token", token);
   let res: Response;
   try {
-    res = await fetch(API_BASE + path, { ...init, headers });
+    res = await fetch(apiBase() + path, { ...init, headers });
   } catch {
     throw new NetworkError("network");
   }

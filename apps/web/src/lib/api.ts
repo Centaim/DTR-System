@@ -1,4 +1,27 @@
-export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const SERVER_KEY = "dtr.server";
+
+/** True inside the Tauri mobile app, where the page is not served by the API's own host. */
+export const isMobileApp = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+export function serverAddress(): string {
+  try {
+    return localStorage.getItem(SERVER_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setServerAddress(address: string | null) {
+  try {
+    if (address) localStorage.setItem(SERVER_KEY, address);
+    else localStorage.removeItem(SERVER_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export const apiBase = () =>
+  (isMobileApp ? serverAddress() : "") || ((import.meta.env.VITE_API_URL as string | undefined) ?? "");
 
 export interface Employee {
   id: number;
@@ -413,7 +436,7 @@ let refreshing: Promise<boolean> | null = null;
 function renewSession(): Promise<boolean> {
   const current = refreshStore.get();
   if (!current) return Promise.resolve(false);
-  refreshing ??= fetch(API_BASE + "/api/auth/refresh", {
+  refreshing ??= fetch(apiBase() + "/api/auth/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: current }),
@@ -441,7 +464,7 @@ async function send(path: string, init: RequestInit): Promise<Response> {
     const token = memoryToken ?? tokenStore.get();
     const headers = new Headers(init.headers);
     if (token) headers.set("Authorization", `Bearer ${token}`);
-    return fetch(API_BASE + path, { ...init, headers });
+    return fetch(apiBase() + path, { ...init, headers });
   };
   let res: Response;
   try {
@@ -496,7 +519,7 @@ export const api = {
   signOut() {
     const refresh = refreshStore.get();
     api.setToken(null);
-    if (refresh) void fetch(API_BASE + "/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: refresh }) }).catch(() => undefined);
+    if (refresh) void fetch(apiBase() + "/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: refresh }) }).catch(() => undefined);
   },
   hasToken: () => Boolean(memoryToken ?? tokenStore.get()),
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, NetworkError, api, type Employee } from "./lib/api";
+import { ApiError, NetworkError, api, isMobileApp, serverAddress, setServerAddress, type Employee } from "./lib/api";
 import { LangContext, initialLang, strings, type Lang } from "./lib/i18n";
 import { Login } from "./screens/Login";
 import { Home } from "./screens/Home";
@@ -15,6 +15,7 @@ import { Accomplishments } from "./screens/Accomplishments";
 import { Events } from "./screens/Events";
 import { Logbook } from "./screens/Logbook";
 import { MfaSetup } from "./screens/MfaSetup";
+import { ServerSetup } from "./screens/ServerSetup";
 import { PrivacyNotice } from "./components/PrivacyNotice";
 
 const EMP_KEY = "dtr.employee";
@@ -40,7 +41,8 @@ function cacheEmployee(e: Employee | null) {
 export default function App() {
   const [lang, setLangState] = useState<Lang>(initialLang);
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [booting, setBooting] = useState(api.hasToken());
+  const [needsServer, setNeedsServer] = useState(isMobileApp && !serverAddress());
+  const [booting, setBooting] = useState(api.hasToken() && !needsServer);
   const [endedNotice, setEndedNotice] = useState(false);
   const [approvalCount, setApprovalCount] = useState(0);
   const [unread, setUnread] = useState(0);
@@ -61,7 +63,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.lang = lang === "fil" ? "fil" : "en";
-    if (!api.hasToken()) return;
+    if (!api.hasToken() || needsServer) return;
     api
       .me()
       .then((e) => {
@@ -109,9 +111,16 @@ export default function App() {
   }, []);
 
   let view;
-  if (booting) view = <div className="shell" aria-busy="true" />;
+  if (needsServer) view = <ServerSetup onDone={() => setNeedsServer(false)} />;
+  else if (booting) view = <div className="shell" aria-busy="true" />;
   else if (!employee)
-    view = <Login onSignedIn={signedIn} notice={endedNotice ? ctx.t.sessionEnded : undefined} />;
+    view = (
+      <Login
+        onSignedIn={signedIn}
+        notice={endedNotice ? ctx.t.sessionEnded : undefined}
+        onChangeServer={isMobileApp ? () => { setServerAddress(null); setNeedsServer(true); } : undefined}
+      />
+    );
   else if (employee.must_change_pin)
     view = (
       <ChangePin

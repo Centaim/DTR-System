@@ -13,6 +13,12 @@ export const governanceEn = {
   privacyRightsH: "Your rights",
   privacyRights: "Under the Data Privacy Act of 2012 (RA 10173), you may ask to access or correct your data and may raise concerns with your agency's Data Protection Officer.",
   privacyAccept: "I have read and understood this notice",
+  serverTitle: "Connect to your agency",
+  serverHelp: "Enter the DTR server address from your HR or IT office.",
+  serverLabel: "Server address",
+  serverSave: "Connect",
+  serverFailed: "That server could not be reached. Check the address and your connection.",
+  serverChange: "Change server",
   mfaLoginTitle: "Two-step sign-in",
   mfaLoginHelp: "Enter the 6-digit code from your authenticator app, or a recovery code.",
   mfaCode: "Code",
@@ -87,6 +93,12 @@ export const governanceEn = {
 } as const;
 
 export const governanceFil = {
+  serverTitle: "Kumonekta sa inyong ahensya",
+  serverHelp: "Ilagay ang address ng DTR server mula sa inyong HR o IT office.",
+  serverLabel: "Address ng server",
+  serverSave: "Kumonekta",
+  serverFailed: "Hindi maabot ang server na iyon. Tingnan ang address at ang inyong koneksyon.",
+  serverChange: "Palitan ang server",
   privacyTitle: "Abiso sa privacy",
   privacyIntro: "Bago gamitin ang DTR, pakibasa kung paano pinangangasiwaan ang inyong datos sa attendance.",
   privacyCollectH: "Ano ang kinokolekta",
