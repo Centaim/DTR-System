@@ -44,6 +44,30 @@ export interface Schedule {
   is_default: boolean;
 }
 
+export interface RequestItem {
+  id: number;
+  kind: string;
+  work_date: string;
+  date_to: string | null;
+  slot: string | null;
+  time: string | null;
+  reason: string;
+  status: string;
+  decision_note: string;
+  created_at: string;
+  employee?: string;
+  employee_no?: string;
+}
+
+export interface RequestInput {
+  kind: string;
+  work_date: string;
+  date_to?: string;
+  slot?: string;
+  time?: string;
+  reason: string;
+}
+
 export interface LogEntry {
   id: number;
   slot: string;
@@ -68,12 +92,14 @@ export interface DtrDay {
   pm_out: string;
   undertime_min: number;
   incomplete: boolean;
+  adjusted: boolean;
+  mark: string;
 }
 
 export interface DtrResponse {
   employee: Employee;
   sheet: { month: string; days: DtrDay[]; total_undertime_min: number };
-  official_hours: { am_start: string; am_end: string; pm_start: string; pm_end: string };
+  official_hours: { am_start: string; am_end: string; pm_start: string; pm_end: string }[];
 }
 
 export class NetworkError extends Error {}
@@ -159,6 +185,17 @@ export const api = {
   me: () => request<Employee>("/api/me"),
   changePin: (current_pin: string, new_pin: string) =>
     request<{ ok: boolean }>("/api/me/pin", json("POST", { current_pin, new_pin })),
+
+  requests: {
+    mine: () => request<RequestItem[]>("/api/requests"),
+    create: (body: RequestInput) => request<RequestItem>("/api/requests", json("POST", body)),
+    cancel: (id: number) => request<{ ok: boolean }>(`/api/requests/${id}/cancel`, { method: "POST" }),
+  },
+  approvals: {
+    pending: () => request<RequestItem[]>("/api/approvals/"),
+    decide: (id: number, approve: boolean, note: string) =>
+      request<RequestItem>(`/api/approvals/${id}/decide`, json("POST", { approve, note })),
+  },
 
   admin: {
     employees: (q: string) =>

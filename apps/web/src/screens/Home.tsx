@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, LogIn, LogOut, Users } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import type { Employee } from "../lib/api";
 import { slotLabel, useT } from "../lib/i18n";
 import { clockParts, formatDate, formatTime } from "../lib/time";
@@ -12,13 +12,9 @@ import { LangSwitch } from "../components/LangSwitch";
 export function Home({
   employee,
   onSignOut,
-  onOpenDtr,
-  onOpenAdmin,
 }: {
   employee: Employee;
   onSignOut: (sessionEnded: boolean) => void;
-  onOpenDtr: () => void;
-  onOpenAdmin: () => void;
 }) {
   const { t, lang } = useT();
   const a = useAttendance();
@@ -112,17 +108,7 @@ export function Home({
           </div>
         </section>
 
-        <div className="stack">
-          <SeamRail rows={a.rows} rejected={a.rejected} freshSlot={a.freshSlot} onDismiss={a.dismiss} />
-          <button className="btn quiet" onClick={onOpenDtr}>
-            <FileText aria-hidden="true" size={20} /> {t.viewDtr}
-          </button>
-          {(employee.role === "hr_admin" || employee.role === "super_admin") && (
-            <button className="btn quiet" onClick={onOpenAdmin}>
-              <Users aria-hidden="true" size={20} /> {t.adminOpen}
-            </button>
-          )}
-        </div>
+        <SeamRail rows={a.rows} rejected={a.rejected} freshSlot={a.freshSlot} onDismiss={a.dismiss} />
       </main>
 
       <footer className="foot">

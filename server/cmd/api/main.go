@@ -15,6 +15,7 @@ import (
 	"dtr/server/internal/auth"
 	"dtr/server/internal/config"
 	"dtr/server/internal/db"
+	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
 	"dtr/server/internal/storage"
 	"dtr/server/migrations"
@@ -87,6 +88,7 @@ func main() {
 		JWTSecret:  cfg.JWTSecret,
 		MaxPhotoMB: cfg.MaxPhotoMB,
 		Schedules:  schedule.NewStore(pool),
+		Requests:   requests.NewStore(pool, cfg.RequestDays, loc),
 		Loc:        loc,
 	}).Routes(app)
 

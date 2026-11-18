@@ -1112,3 +1112,152 @@ ul {
 .danger-zone {
   margin-top: 24px;
 }
+
+/* ---------- Bottom navigation ---------- */
+
+.has-nav .shell {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  background: var(--panel);
+  border-top: 1px solid var(--seam-strong);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-item {
+  flex: 1 1 0;
+  max-width: 150px;
+  min-width: 0;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 0;
+  border-top: 3px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.nav-item > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-item[aria-current="page"] {
+  color: var(--accent);
+  border-top-color: var(--accent);
+}
+
+.nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 0.6875rem;
+  line-height: 18px;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .nav-badge {
+    color: #14171a;
+  }
+}
+
+/* ---------- Requests and approvals ---------- */
+
+.field textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  background: var(--ground);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+  caret-color: var(--accent);
+}
+
+.tag.status-approved {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.tag.status-pending {
+  border-style: dashed;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.tag.status-rejected {
+  border-color: var(--bad);
+  color: var(--bad);
+  text-decoration: line-through;
+}
+
+.tag.status-cancelled {
+  color: var(--ink-2);
+}
+
+.start {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.row.approval .row-main {
+  gap: 4px;
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.actions .btn {
+  flex: 1 1 140px;
+}
+
+/* Reject sits apart from Approve. */
+.reject-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media print {
+  .has-nav .shell {
+    padding-bottom: 0;
+  }
+}

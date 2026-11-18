@@ -12,6 +12,7 @@ import (
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
 	"dtr/server/internal/dtr"
+	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
 
 	"github.com/gofiber/fiber/v2"
@@ -38,6 +39,7 @@ type API struct {
 	Pool       *pgxpool.Pool
 	Attendance *attendance.Service
 	Schedules  *schedule.Store
+	Requests   *requests.Store
 	JWTSecret  []byte
 	MaxPhotoMB int
 	Loc        *time.Location
@@ -91,6 +93,7 @@ func (a *API) Routes(app *fiber.App) {
 	secured.Get("/attendance/today", a.today)
 	secured.Post("/attendance/clock", a.clock)
 	secured.Get("/dtr", a.dtr)
+	a.requestRoutes(secured)
 
 	a.adminRoutes(secured.Group("/admin", a.requireRole(roleHR, roleSuper)))
 }
@@ -335,7 +338,11 @@ func (a *API) dtr(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	sheet := dtr.Compute(year, month, logs, hoursFor, a.Loc)
+	adjustments, marks, err := a.Requests.ForMonth(c.Context(), id, year, month)
+	if err != nil {
+		return err
+	}
+	sheet := dtr.Compute(year, month, append(logs, adjustments...), marks, hoursFor, a.Loc)
 
 	// Distinct official hours in the month, in order, for the form header.
 	var official []fiber.Map

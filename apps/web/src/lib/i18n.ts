@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import { adminEn } from "./i18n-admin";
+import { requestsEn } from "./i18n-requests";
 
 export type Lang = "en" | "fil";
 
@@ -73,7 +74,14 @@ const dict = {
     pinRules: "6 to 12 digits. Avoid repeated or counting digits such as 111111 or 123456.",
     pinMismatch: "The two new PINs do not match.",
     savePin: "Save new PIN",
+    navLabel: "Main",
+    navHome: "Home",
+    navDtr: "Attendance",
+    navRequests: "Requests",
+    navApprovals: "Approvals",
+    navAdmin: "HR admin",
     ...adminEn,
+    ...requestsEn,
   },
   fil: {
     appName: "DTR",
@@ -143,6 +151,12 @@ const dict = {
     pinRules: "6 hanggang 12 numero. Iwasan ang magkakaparehong numero o sunod-sunod tulad ng 111111 o 123456.",
     pinMismatch: "Hindi magkapareho ang dalawang bagong PIN.",
     savePin: "I-save ang bagong PIN",
+    navLabel: "Pangunahin",
+    navHome: "Home",
+    navDtr: "Attendance",
+    navRequests: "Mga request",
+    navApprovals: "Aprubahan",
+    navAdmin: "HR admin",
   },
 } as const;
 

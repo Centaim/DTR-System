@@ -31,13 +31,7 @@ function monthLabel(month: string): string {
   );
 }
 
-export function Dtr({
-  onBack,
-  onSignOut,
-}: {
-  onBack: () => void;
-  onSignOut: (sessionEnded: boolean) => void;
-}) {
+export function Dtr({ onSignOut }: { onSignOut: (sessionEnded: boolean) => void }) {
   const { t } = useT();
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<DtrResponse | null>(null);
@@ -60,24 +54,24 @@ export function Dtr({
     };
   }, [month, onSignOut]);
 
-  const hrs = data?.official_hours;
-  const regular = hrs ? `${to12(hrs.am_start)}–${to12(hrs.am_end)}, ${to12(hrs.pm_start)}–${to12(hrs.pm_end)}` : "";
+  const regular = (data?.official_hours ?? [])
+    .map((h) => `${to12(h.am_start)}–${to12(h.am_end)}, ${to12(h.pm_start)}–${to12(h.pm_end)}`)
+    .join("  /  ");
   const anyIncomplete = data?.sheet.days.some((d) => d.incomplete) ?? false;
+  const anyAdjusted = data?.sheet.days.some((d) => d.adjusted) ?? false;
   const total = data?.sheet.total_undertime_min ?? 0;
   const days = data?.sheet.days ?? [];
 
   return (
     <div className="shell dtr-shell">
       <header className="topbar no-print">
-        <button className="btn quiet" onClick={onBack}>
-          <ChevronLeft aria-hidden="true" size={20} /> {t.back}
-        </button>
+        <span className="brand">{t.navDtr}</span>
         <button className="btn primary" onClick={() => window.print()} disabled={!data}>
           <Printer aria-hidden="true" size={20} /> {t.printDtr}
         </button>
       </header>
 
-      <main className="main dtr-main">
+      <main className="main dtr-main with-nav">
         <div className="month-nav no-print">
           <button className="btn quiet icon" onClick={() => setMonth(shiftMonth(month, -1))} aria-label={t.prevMonth}>
             <ChevronLeft aria-hidden="true" size={20} />
@@ -149,10 +143,11 @@ export function Dtr({
                         <td>
                           {d.day}
                           {d.incomplete && <span className="no-print flag" title={t.dtrIncomplete}> !</span>}
+                          {d.adjusted && <span className="no-print flag" title={t.dtrAdjusted}> *</span>}
                         </td>
-                        {weekend && !hasLogs(d) ? (
+                        {(weekend || d.mark) && !hasLogs(d) ? (
                           <td colSpan={6} className="f48-off">
-                            {d.weekday.toUpperCase()}
+                            {d.mark || d.weekday.toUpperCase()}
                           </td>
                         ) : (
                           <>
@@ -193,6 +188,7 @@ export function Dtr({
         )}
 
         {data && anyIncomplete && <p className="muted small no-print">{t.dtrIncomplete}</p>}
+        {data && anyAdjusted && <p className="muted small no-print">{t.dtrAdjusted}</p>}
         <p className="muted small no-print">{t.dtrSample}</p>
       </main>
     </div>

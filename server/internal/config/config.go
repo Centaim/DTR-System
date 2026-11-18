@@ -14,6 +14,7 @@ type Config struct {
 	PhotoDir    string
 	MaxPhotoMB  int
 	MinGapSecs  int // blocks duplicate taps; a setting, not a constant
+	RequestDays int // how far back a request may be dated
 	CORSOrigins string
 	SeedDemo    bool
 }
@@ -42,6 +43,11 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("MIN_GAP_SECONDS must be zero or a positive integer")
 	}
 	c.MinGapSecs = gap
+	days, err := strconv.Atoi(env("REQUEST_WINDOW_DAYS", "30"))
+	if err != nil || days < 1 {
+		return c, fmt.Errorf("REQUEST_WINDOW_DAYS must be a positive integer")
+	}
+	c.RequestDays = days
 	return c, nil
 }
 

@@ -57,9 +57,10 @@ func minutes(hhmm string) (int, error) {
 
 // Log is one recorded slot, already in local (Asia/Manila) time.
 type Log struct {
-	Day  int
-	Slot string
-	At   time.Time
+	Day      int
+	Slot     string
+	At       time.Time
+	Adjusted bool // came from an approved correction, not the device
 }
 
 type Day struct {
@@ -71,6 +72,8 @@ type Day struct {
 	PMOut        string `json:"pm_out"`
 	UndertimeMin int    `json:"undertime_min"`
 	Incomplete   bool   `json:"incomplete"`
+	Adjusted     bool   `json:"adjusted"`
+	Mark         string `json:"mark"` // e.g. LEAVE; the day is excused
 }
 
 type Sheet struct {
@@ -82,15 +85,20 @@ type Sheet struct {
 // Compute builds the sheet. hoursFor gives the official hours in force on a date,
 // so a schedule change never rewrites earlier days. Undertime counts late arrival, early departure and
 // unrecorded time inside official hours, for days that have at least one log.
-// A day missing a pair is flagged Incomplete so a person reviews it, because
+// Days with an approved leave, official business or travel order carry no
+// undertime. A day missing a pair is flagged Incomplete so a person reviews it, because
 // the figure for that day is then an upper bound.
-func Compute(year int, month time.Month, logs []Log, hoursFor func(time.Time) Hours, loc *time.Location) Sheet {
+func Compute(year int, month time.Month, logs []Log, marks map[int]string, hoursFor func(time.Time) Hours, loc *time.Location) Sheet {
 	byDay := map[int]map[string]time.Time{}
+	adjusted := map[int]bool{}
 	for _, l := range logs {
 		if byDay[l.Day] == nil {
 			byDay[l.Day] = map[string]time.Time{}
 		}
 		byDay[l.Day][l.Slot] = l.At
+		if l.Adjusted {
+			adjusted[l.Day] = true
+		}
 	}
 
 	first := time.Date(year, month, 1, 0, 0, 0, 0, loc)
@@ -100,14 +108,16 @@ func Compute(year int, month time.Month, logs []Log, hoursFor func(time.Time) Ho
 	for d := 1; d <= n; d++ {
 		date := time.Date(year, month, d, 0, 0, 0, 0, loc)
 		h := hoursFor(date)
-		row := Day{Day: d, Weekday: date.Weekday().String()}
+		row := Day{Day: d, Weekday: date.Weekday().String(), Mark: marks[d], Adjusted: adjusted[d]}
 		if s, ok := byDay[d]; ok {
 			row.AMIn, row.AMOut = hhmm(s["am_in"]), hhmm(s["am_out"])
 			row.PMIn, row.PMOut = hhmm(s["pm_in"]), hhmm(s["pm_out"])
 
 			credited := overlap(s["am_in"], s["am_out"], h.AM) + overlap(s["pm_in"], s["pm_out"], h.PM)
-			row.UndertimeMin = max(0, h.Total()-credited)
-			row.Incomplete = len(s) < 4
+			if row.Mark == "" {
+				row.UndertimeMin = max(0, h.Total()-credited)
+				row.Incomplete = len(s) < 4
+			}
 			sheet.TotalUndertimeMin += row.UndertimeMin
 		}
 		sheet.Days = append(sheet.Days, row)

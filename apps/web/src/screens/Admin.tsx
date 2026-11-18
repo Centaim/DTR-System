@@ -1,24 +1,20 @@
 import { useState } from "react";
-import { ChevronLeft } from "lucide-react";
 import type { Employee } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { EmployeesTab } from "./admin/EmployeesTab";
 import { SchedulesTab } from "./admin/SchedulesTab";
 
-export function Admin({ employee, onBack }: { employee: Employee; onBack: () => void }) {
+export function Admin({ employee }: { employee: Employee }) {
   const { t } = useT();
   const [tab, setTab] = useState<"employees" | "schedules">("employees");
 
   return (
     <div className="shell">
       <header className="topbar">
-        <button className="btn quiet" onClick={onBack}>
-          <ChevronLeft aria-hidden="true" size={20} /> {t.back}
-        </button>
         <span className="brand">{t.adminTitle}</span>
       </header>
 
-      <main className="main admin-main">
+      <main className="main admin-main with-nav">
         <div className="tabs" role="tablist" aria-label={t.adminTitle}>
           {(["employees", "schedules"] as const).map((k) => (
             <button

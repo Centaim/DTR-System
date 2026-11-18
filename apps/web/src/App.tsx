@@ -6,6 +6,9 @@ import { Home } from "./screens/Home";
 import { Dtr } from "./screens/Dtr";
 import { Admin } from "./screens/Admin";
 import { ChangePin } from "./screens/ChangePin";
+import { Requests } from "./screens/Requests";
+import { Approvals } from "./screens/Approvals";
+import { BottomNav, type Screen } from "./components/BottomNav";
 
 const EMP_KEY = "dtr.employee";
 
@@ -32,7 +35,8 @@ export default function App() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [booting, setBooting] = useState(api.hasToken());
   const [endedNotice, setEndedNotice] = useState(false);
-  const [screen, setScreen] = useState<"home" | "dtr" | "admin">("home");
+  const [approvalCount, setApprovalCount] = useState(0);
+  const [screen, setScreen] = useState<Screen>("home");
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
@@ -63,6 +67,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const role = employee?.role;
+  useEffect(() => {
+    if (role === "supervisor" || role === "hr_admin" || role === "super_admin") {
+      api.approvals.pending().then((l) => setApprovalCount(l.length)).catch(() => undefined);
+    }
+  }, [role]);
+
   const signOut = useCallback((sessionEnded: boolean) => {
     api.setToken(null);
     cacheEmployee(null);
@@ -88,9 +99,20 @@ export default function App() {
         onSignOut={() => signOut(false)}
       />
     );
-  else if (screen === "admin") view = <Admin employee={employee} onBack={() => setScreen("home")} />;
-  else if (screen === "dtr") view = <Dtr onBack={() => setScreen("home")} onSignOut={signOut} />;
-  else view = <Home employee={employee} onSignOut={signOut} onOpenDtr={() => setScreen("dtr")} onOpenAdmin={() => setScreen("admin")} />;
+  else if (screen === "admin") view = <Admin employee={employee} />;
+  else if (screen === "dtr") view = <Dtr onSignOut={signOut} />;
+  else if (screen === "requests") view = <Requests />;
+  else if (screen === "approvals") view = <Approvals onCount={setApprovalCount} />;
+  else view = <Home employee={employee} onSignOut={signOut} />;
 
-  return <LangContext.Provider value={ctx}>{view}</LangContext.Provider>;
+  const showNav = !booting && employee !== null && !employee.must_change_pin;
+
+  return (
+    <LangContext.Provider value={ctx}>
+      <div className={showNav ? "has-nav" : undefined}>{view}</div>
+      {showNav && employee && (
+        <BottomNav screen={screen} role={employee.role} approvals={approvalCount} onGo={setScreen} />
+      )}
+    </LangContext.Provider>
+  );
 }

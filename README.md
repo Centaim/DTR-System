@@ -2,7 +2,7 @@
 
 Daily Time Record system for Philippine government agencies. Employees clock in and out with a live photo as proof of attendance. See `PLAN.md` for scope and `CLAUDE.md` for project rules.
 
-**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, and dated schedules. Not built yet: kiosk, approvals, photo audit, reports, the Tauri mobile shell. Admin screens are English only for now.
+**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR. Not built yet: kiosk, photo audit, reports, the Tauri mobile shell. Admin, requests and approvals screens are English only for now.
 
 ## Run locally
 
@@ -45,7 +45,8 @@ Camera access needs `localhost` or HTTPS. Testing from a phone on the local netw
 | `MAX_PHOTO_MB` | `5` | Largest accepted photo |
 | `MIN_GAP_SECONDS` | `60` | Blocks accidental double taps (set to 0 in demos) |
 | `CORS_ORIGINS` | `http://localhost:5173` | Allowed web origins |
-| `SEED_DEMO` | `false` | Insert the synthetic demo employee |
+| `SEED_DEMO` | `false` | Insert the synthetic demo accounts |
+| `REQUEST_WINDOW_DAYS` | `30` | How far back an employee may date a request |
 
 ## Checks
 
