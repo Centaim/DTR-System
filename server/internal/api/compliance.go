@@ -47,6 +47,15 @@ type pack struct {
 	file  *os.File
 	zw    *zip.Writer
 	files []packFile
+	sent  bool
+}
+
+// close releases the file unless it was handed over for streaming, in which
+// case the server closes it after the download finishes.
+func (p *pack) close() {
+	if !p.sent {
+		_ = p.file.Close()
+	}
 }
 
 type packFile struct {
@@ -173,6 +182,7 @@ func (p *pack) send(c *fiber.Ctx, filename string, about fiber.Map) error {
 	c.Set("Content-Type", "application/zip")
 	c.Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	c.Set("Cache-Control", "private, no-store")
+	p.sent = true
 	return c.SendStream(p.file, int(size)) // closes the file when done
 }
 
@@ -212,7 +222,7 @@ func (a *API) auditPack(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	defer p.file.Close()
+	defer p.close()
 
 	summary, err := a.Reports.Summary(ctx, y, m, office)
 	if err != nil {
@@ -449,7 +459,7 @@ func (a *API) writeDataExport(c *fiber.Ctx, id int64) error {
 	if err != nil {
 		return err
 	}
-	defer p.file.Close()
+	defer p.close()
 	queries := []struct{ name, sql string }{
 		{"profile.csv", `SELECT employee_no, full_name, position, office, role::text, employment::text, email, active, ` + at("created_at") + ` AS created_at_manila, ` + at("last_login_at") + ` AS last_login_manila FROM employees WHERE id=$1`},
 		{"attendance-logs.csv", `SELECT id AS log_id, work_date::text, slot::text, ` + at("recorded_at") + ` AS recorded_at_manila, channel::text, offline, device_id, latitude, longitude FROM attendance_logs WHERE employee_id=$1 ORDER BY id`},
