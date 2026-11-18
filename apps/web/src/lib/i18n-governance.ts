@@ -25,6 +25,7 @@ export const governanceEn = {
   set_min_gap_seconds: "Seconds between two logs",
   set_request_window_days: "Days back a request can be filed",
   set_habitual_late_days: "Late days in a month for the habitual tardiness flag",
+  set_dtr_allow_early_submit: "Allow certifying a DTR before the month ends (1 yes, 0 no)",
   set_pin_max_attempts: "Wrong PINs before an account locks",
   set_pin_lock_minutes: "Minutes an account stays locked",
   set_photo_retention_days: "Days to keep clock-in photos (0 keeps them)",

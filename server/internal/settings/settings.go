@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	DTREarlySubmit     = "dtr_allow_early_submit"
 	PhotoRetentionDays = "photo_retention_days"
 	PrivacyVersion     = "privacy_notice_version"
 	MinGapSeconds      = "min_gap_seconds"
@@ -40,6 +41,7 @@ func Definitions(defaults map[string]int) []Definition {
 		{MinGapSeconds, "attendance", 60, 0, 3600},
 		{RequestWindowDays, "attendance", 30, 1, 365},
 		{HabitualLateDays, "attendance", 10, 1, 31},
+		{DTREarlySubmit, "attendance", 0, 0, 1},
 		{PINMaxAttempts, "security", 5, 3, 20},
 		{PINLockMinutes, "security", 10, 1, 1440},
 		{PhotoRetentionDays, "privacy", 0, 0, 3650},

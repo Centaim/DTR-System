@@ -214,6 +214,35 @@ export interface DtrResponse {
   employee: Employee;
   sheet: { month: string; days: DtrDay[]; total_undertime_min: number };
   official_hours: { am_start: string; am_end: string; pm_start: string; pm_end: string }[];
+  submission: DtrSubmission | null;
+  can_certify: boolean;
+}
+
+export interface DtrSubmission {
+  id: number;
+  version: number;
+  status: string;
+  verify_code: string;
+  certified_at: string;
+  note: string;
+}
+
+export interface DtrPendingRow {
+  id: number;
+  name: string;
+  employee_no: string;
+  office: string;
+  month: string;
+  version: number;
+}
+
+export interface TrackerRow {
+  employee_no: string;
+  name: string;
+  office: string;
+  id: number;
+  status: string;
+  version: number;
 }
 
 export class NetworkError extends Error {}
@@ -341,6 +370,20 @@ export const api = {
       request<{ ok: boolean }>(`/api/audit/logs/${logId}/review`, json("POST", { outcome, note })),
   },
 
+  certifyDtr: (month: string) => request<DtrSubmission>(`/api/dtr/certify?month=${month}`, { method: "POST" }),
+  dtrReview: {
+    pending: () => request<DtrPendingRow[]>("/api/dtr-review/"),
+    open: (id: number) =>
+      request<{ submission: DtrSubmission; dtr: Pick<DtrResponse, "employee" | "sheet" | "official_hours"> }>(`/api/dtr-review/${id}`),
+    verify: (id: number) => request<{ ok: boolean }>(`/api/dtr-review/${id}/verify`, json("POST", {})),
+    reject: (id: number, note: string) => request<{ ok: boolean }>(`/api/dtr-review/${id}/return`, json("POST", { note })),
+  },
+  dtrAdmin: {
+    tracker: (month: string) => request<TrackerRow[]>(`/api/dtr-admin/tracker?month=${month}`),
+    bulk: (month: string, office: string) =>
+      request<DtrResponse[]>(`/api/dtr-admin/bulk?month=${month}&office=${encodeURIComponent(office)}`),
+    reopen: (id: number, note: string) => request<{ ok: boolean }>(`/api/dtr-admin/${id}/reopen`, json("POST", { note })),
+  },
   acceptPrivacy: () => request<{ ok: boolean }>("/api/me/privacy", { method: "POST" }),
 
   admin: {

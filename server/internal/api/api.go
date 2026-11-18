@@ -13,7 +13,6 @@ import (
 
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
-	"dtr/server/internal/dtr"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
 	"dtr/server/internal/kiosk"
@@ -107,14 +106,16 @@ func (a *API) Routes(app *fiber.App) {
 	// Kiosks authenticate with a device token, so these go before the session guard on /api.
 	a.kioskRoutes(app)
 
+	app.Get("/api/public/verify/:code", rateLimit(), a.publicVerify)
+
 	secured := app.Group("/api", a.requireAuth)
 	secured.Get("/me", a.me)
 	secured.Post("/me/pin", rateLimit(), a.changePIN)
 	secured.Post("/me/privacy", a.acceptPrivacy)
 	secured.Get("/attendance/today", a.today)
 	secured.Post("/attendance/clock", a.clock)
-	secured.Get("/dtr", a.dtr)
 	a.requestRoutes(secured)
+	a.dtrFlowRoutes(secured)
 	a.photoAuditRoutes(secured)
 	a.reportRoutes(secured)
 
@@ -390,62 +391,6 @@ func truncate(s string, n int) string {
 		return s[:n]
 	}
 	return s
-}
-
-// dtr returns the employee's own Daily Time Record for ?month=YYYY-MM.
-func (a *API) dtr(c *fiber.Ctx) error {
-	now := time.Now().In(a.Loc)
-	year, month := now.Year(), now.Month()
-	if q := c.Query("month"); q != "" {
-		t, err := time.Parse("2006-01", q)
-		if err != nil {
-			return apiError(c, fiber.StatusBadRequest, "bad_request", "Month must look like 2026-11.")
-		}
-		year, month = t.Year(), t.Month()
-	}
-	id := actorID(c)
-
-	e, err := scanEmployee(a.Pool.QueryRow(c.Context(), `SELECT `+empCols+` FROM employees WHERE id = $1`, id))
-	if err != nil {
-		return err
-	}
-	logs, err := a.Attendance.MonthLogs(c.Context(), id, year, month, a.Loc)
-	if err != nil {
-		return err
-	}
-	hoursFor, err := a.Schedules.HoursFunc(c.Context(), id)
-	if err != nil {
-		return err
-	}
-	adjustments, marks, err := a.Requests.ForMonth(c.Context(), id, year, month)
-	if err != nil {
-		return err
-	}
-	hol, err := a.Holidays.ForMonth(c.Context(), year, month)
-	if err != nil {
-		return err
-	}
-	for d, label := range hol {
-		if _, ok := marks[d]; !ok {
-			marks[d] = label
-		}
-	}
-	sheet := dtr.Compute(year, month, append(logs, adjustments...), marks, hoursFor, a.Loc)
-
-	// Distinct official hours in the month, in order, for the form header.
-	var official []fiber.Map
-	seen := map[dtr.Hours]bool{}
-	for _, d := range sheet.Days {
-		h := hoursFor(time.Date(year, month, d.Day, 0, 0, 0, 0, a.Loc))
-		if !seen[h] {
-			seen[h] = true
-			official = append(official, fiber.Map{
-				"am_start": fmtHM(h.AM.Start), "am_end": fmtHM(h.AM.End),
-				"pm_start": fmtHM(h.PM.Start), "pm_end": fmtHM(h.PM.End),
-			})
-		}
-	}
-	return c.JSON(fiber.Map{"employee": e, "sheet": sheet, "official_hours": official})
 }
 
 func fmtHM(m int) string { return time.Date(2000, 1, 1, m/60, m%60, 0, 0, time.UTC).Format("15:04") }

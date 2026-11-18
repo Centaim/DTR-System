@@ -6,6 +6,7 @@ import { reportsEn } from "./i18n-reports";
 import { peopleEn } from "./i18n-people";
 import { kioskEn, kioskFil } from "./i18n-kiosk";
 import { governanceEn, governanceFil } from "./i18n-governance";
+import { dtrEn, dtrFil } from "./i18n-dtr";
 
 export type Lang = "en" | "fil";
 
@@ -92,6 +93,7 @@ const dict = {
     ...peopleEn,
     ...kioskEn,
     ...governanceEn,
+    ...dtrEn,
   },
   fil: {
     appName: "DTR",
@@ -169,6 +171,7 @@ const dict = {
     navAdmin: "HR admin",
     ...kioskFil,
     ...governanceFil,
+    ...dtrFil,
   },
 } as const;
 

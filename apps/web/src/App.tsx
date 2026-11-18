@@ -71,7 +71,9 @@ export default function App() {
   const role = employee?.must_change_pin || !employee?.privacy_accepted ? undefined : employee.role;
   useEffect(() => {
     if (role === "supervisor" || role === "hr_admin" || role === "super_admin") {
-      api.approvals.pending().then((l) => setApprovalCount(l.length)).catch(() => undefined);
+      Promise.all([api.approvals.pending(), api.dtrReview.pending()])
+        .then(([l, d]) => setApprovalCount(l.length + d.length))
+        .catch(() => undefined);
     }
   }, [role]);
 

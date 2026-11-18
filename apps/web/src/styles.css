@@ -1771,3 +1771,104 @@ table.data th.wrap {
 .set-group input:disabled {
   color: var(--ink-2);
 }
+
+/* ---------- DTR workflow ---------- */
+
+.day-cards {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--seam);
+  border-radius: var(--radius);
+}
+
+.day-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--seam);
+}
+
+.day-card:first-child {
+  border-top: 0;
+}
+
+.day-num {
+  flex: none;
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.day-num small {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.day-card .row-main {
+  flex: 1;
+}
+
+@media screen and (max-width: 639px) {
+  .wide-only {
+    display: none;
+  }
+}
+
+@media screen and (min-width: 640px) {
+  .day-cards {
+    display: none;
+  }
+}
+
+.f48-qr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.6875rem;
+}
+
+.f48-qr img {
+  width: 18mm;
+  height: 18mm;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--ink-2);
+}
+
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bulk-sheet {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: 190mm;
+}
+
+@media print {
+  .bulk-sheet {
+    position: static;
+    width: auto;
+  }
+
+  .bulk-page {
+    break-after: page;
+  }
+}

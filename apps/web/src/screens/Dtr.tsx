@@ -1,33 +1,35 @@
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, Printer, ShieldCheck } from "lucide-react";
 import { ApiError, api, type DtrDay, type DtrResponse } from "../lib/api";
-import { useT } from "../lib/i18n";
+import { useT, type Strings } from "../lib/i18n";
+import { currentMonth, monthLabel, shiftMonth, to12 } from "../lib/month";
+import { Form48 } from "../components/Form48";
 
-const to12 = (hhmm: string) => {
-  if (!hhmm) return "";
-  const [h = "0", m = "00"] = hhmm.split(":");
-  return `${Number(h) % 12 || 12}:${m}`;
-};
+const stLabel = (t: Strings, s: string) => t[`dtrSt_${s}` as keyof Strings] as string;
+const hm = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 
-const hasLogs = (d: DtrDay) => Boolean(d.am_in || d.am_out || d.pm_in || d.pm_out);
-
-function shiftMonth(month: string, by: number): string {
-  const [y = 0, m = 1] = month.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m - 1 + by, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-function currentMonth(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit" })
-    .formatToParts(new Date());
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}`;
-}
-
-function monthLabel(month: string): string {
-  const [y = 0, m = 1] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-PH", { timeZone: "UTC", month: "long", year: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, 1)),
+function DayCard({ d, t }: { d: DtrDay; t: Strings }) {
+  const has = d.am_in || d.am_out || d.pm_in || d.pm_out;
+  const off = d.weekday === "Saturday" || d.weekday === "Sunday";
+  return (
+    <li className="day-card" data-muted={!has || undefined}>
+      <span className="day-num">
+        {d.day}
+        <small>{d.weekday.slice(0, 3)}</small>
+      </span>
+      <span className="row-main">
+        {has ? (
+          <span className="rail-slot">
+            {to12(d.am_in) || "—"} – {to12(d.am_out) || "—"} · {to12(d.pm_in) || "—"} – {to12(d.pm_out) || "—"}
+          </span>
+        ) : (
+          <span className="rail-state">{d.mark || (off ? d.weekday : t.dtrNoLogs)}</span>
+        )}
+        {d.incomplete && <span className="rail-state flag">! {t.dtrIncomplete}</span>}
+        {d.adjusted && <span className="rail-state">* {t.dtrAdjusted}</span>}
+      </span>
+      {d.undertime_min > 0 && <span className="rail-time">{hm(d.undertime_min)}</span>}
+    </li>
   );
 }
 
@@ -36,37 +38,47 @@ export function Dtr({ onSignOut }: { onSignOut: (sessionEnded: boolean) => void 
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<DtrResponse | null>(null);
   const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    let live = true;
-    setData(null);
+  const load = useCallback(() => {
     setFailed(false);
-    api
+    return api
       .dtr(month)
-      .then((r) => live && setData(r))
+      .then(setData)
       .catch((e) => {
-        if (!live) return;
         if (e instanceof ApiError && e.status === 401) onSignOut(true);
         else setFailed(true);
       });
-    return () => {
-      live = false;
-    };
   }, [month, onSignOut]);
 
-  const regular = (data?.official_hours ?? [])
-    .map((h) => `${to12(h.am_start)}–${to12(h.am_end)}, ${to12(h.pm_start)}–${to12(h.pm_end)}`)
-    .join("  /  ");
-  const anyIncomplete = data?.sheet.days.some((d) => d.incomplete) ?? false;
-  const anyAdjusted = data?.sheet.days.some((d) => d.adjusted) ?? false;
-  const total = data?.sheet.total_undertime_min ?? 0;
-  const days = data?.sheet.days ?? [];
+  useEffect(() => {
+    setData(null);
+    setError("");
+    void load();
+  }, [load]);
+
+  const certify = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api.certifyDtr(month);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError && e.message ? e.message : t.errGeneric);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sub = data?.submission ?? null;
+  const live = sub && (sub.status === "submitted" || sub.status === "verified");
 
   return (
     <div className="shell dtr-shell">
       <header className="topbar no-print">
         <span className="brand">{t.navDtr}</span>
-        <button className="btn primary" onClick={() => window.print()} disabled={!data}>
+        <button className="btn quiet" onClick={() => window.print()} disabled={!data}>
           <Printer aria-hidden="true" size={20} /> {t.printDtr}
         </button>
       </header>
@@ -82,114 +94,44 @@ export function Dtr({ onSignOut }: { onSignOut: (sessionEnded: boolean) => void 
           </button>
         </div>
 
-        {failed && (
-          <p className="msg bad no-print" role="alert">
-            {t.dtrFailed}
-          </p>
-        )}
+        {failed && <p className="msg bad no-print" role="alert">{t.dtrFailed}</p>}
         {!data && !failed && <p className="muted no-print" role="status">{t.dtrLoading}</p>}
 
         {data && (
-          <div className="paper-scroll">
-            <article className="form48" aria-label={`Daily Time Record, ${monthLabel(month)}`}>
-              <p className="f48-ref">Civil Service Form No. 48</p>
-              <h2 className="f48-title">DAILY TIME RECORD</h2>
-              <p className="f48-rule">-----o0o-----</p>
-
-              <p className="f48-name">{data.employee.full_name}</p>
-              <p className="f48-cap">(Name)</p>
-
-              <div className="f48-meta">
-                <p>
-                  For the month of <span className="f48-fill">{monthLabel(month)}</span>
-                </p>
-                <p>
-                  Official hours for arrival and departure
-                  <span className="f48-fill block">Regular days: {regular}</span>
-                  <span className="f48-fill block">Saturdays:</span>
-                </p>
-              </div>
-
-              <table className="f48-table">
-                <thead>
-                  <tr>
-                    <th rowSpan={2}>Day</th>
-                    <th colSpan={2}>A.M.</th>
-                    <th colSpan={2}>P.M.</th>
-                    <th colSpan={2}>Undertime</th>
-                  </tr>
-                  <tr>
-                    <th>Arrival</th>
-                    <th>Departure</th>
-                    <th>Arrival</th>
-                    <th>Departure</th>
-                    <th>Hours</th>
-                    <th>Minutes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 31 }, (_, i) => days[i]).map((d, i) => {
-                    if (!d) {
-                      return (
-                        <tr key={i}>
-                          <td>{i + 1}</td>
-                          <td colSpan={6} />
-                        </tr>
-                      );
-                    }
-                    const weekend = d.weekday === "Saturday" || d.weekday === "Sunday";
-                    return (
-                      <tr key={d.day} data-incomplete={d.incomplete || undefined}>
-                        <td>
-                          {d.day}
-                          {d.incomplete && <span className="no-print flag" title={t.dtrIncomplete}> !</span>}
-                          {d.adjusted && <span className="no-print flag" title={t.dtrAdjusted}> *</span>}
-                        </td>
-                        {(weekend || d.mark) && !hasLogs(d) ? (
-                          <td colSpan={6} className="f48-off">
-                            {d.mark || d.weekday.toUpperCase()}
-                          </td>
-                        ) : (
-                          <>
-                            <td>{to12(d.am_in)}</td>
-                            <td>{to12(d.am_out)}</td>
-                            <td>{to12(d.pm_in)}</td>
-                            <td>{to12(d.pm_out)}</td>
-                            <td>{hasLogs(d) && d.undertime_min > 0 ? Math.floor(d.undertime_min / 60) : ""}</td>
-                            <td>{hasLogs(d) && d.undertime_min > 0 ? d.undertime_min % 60 : ""}</td>
-                          </>
-                        )}
-                      </tr>
-                    );
-                  })}
-                  <tr className="f48-total">
-                    <td colSpan={5}>TOTAL</td>
-                    <td>{total > 0 ? Math.floor(total / 60) : ""}</td>
-                    <td>{total > 0 ? total % 60 : ""}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <p className="f48-cert">
-                I CERTIFY on my honor that the above is a true and correct report of the hours of work performed,
-                record of which was made daily at the time of arrival and departure from office.
+          <section className="panel form no-print" aria-live="polite">
+            {sub && (
+              <p className={`msg ${sub.status === "verified" ? "ok" : sub.status === "submitted" ? "warn" : "bad"}`}>
+                {stLabel(t, sub.status)} · {t.dtrVersion(sub.version)}
+                {sub.note ? ` · ${t.dtrReturnNote(sub.note)}` : ""}
               </p>
-              <div className="f48-sign">
-                <span />
-                <p className="f48-cap">{data.employee.full_name}</p>
-              </div>
-              <p className="f48-verify">Verified as to the prescribed office hours.</p>
-              <div className="f48-sign">
-                <span />
-                <p className="f48-cap">In Charge</p>
-              </div>
-            </article>
-          </div>
+            )}
+            {data.can_certify ? (
+              <>
+                <p className="muted small">{t.dtrCertifyNote}</p>
+                <button className="btn primary" onClick={certify} disabled={busy}>
+                  <ShieldCheck aria-hidden="true" size={20} /> {busy ? t.dtrCertifying : t.dtrCertify}
+                </button>
+              </>
+            ) : (
+              !live && <p className="muted small">{t.dtrMonthOpen}</p>
+            )}
+            {error && <p className="msg bad" role="alert">{error}</p>}
+          </section>
         )}
 
-        {data && anyIncomplete && <p className="muted small no-print">{t.dtrIncomplete}</p>}
-        {data && anyAdjusted && <p className="muted small no-print">{t.dtrAdjusted}</p>}
-        <p className="muted small no-print">{t.dtrSample}</p>
+        {data && (
+          <>
+            <ul className="day-cards no-print">
+              {data.sheet.days.map((d) => (
+                <DayCard key={d.day} d={d} t={t} />
+              ))}
+            </ul>
+            <div className="paper-scroll wide-only">
+              <Form48 data={data} code={live ? sub?.verify_code : undefined} />
+            </div>
+            <p className="muted small no-print">{t.dtrSample}</p>
+          </>
+        )}
       </main>
     </div>
   );
