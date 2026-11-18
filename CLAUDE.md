@@ -49,6 +49,8 @@ Planned layout: `apps/web`, `apps/mobile`, `packages/{ui,api-client,shared}`, `s
 - Use official Tauri plugins for geolocation, barcode scanning, biometric unlock, notifications and SQLite where they fit.
 - Store tokens in Android Keystore and iOS Keychain.
 - iOS builds need a Mac with Xcode.
+- Android builds need a JDK 17 or 21 with the compiler (`java-21-openjdk-devel`); a JRE or Java 25 does not work with the generated Gradle. See `README.md`.
+- The camera in the Android WebView is untested. Test it on an emulator or phone before building more on top of it.
 
 ## Privacy and security
 

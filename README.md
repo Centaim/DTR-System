@@ -2,7 +2,7 @@
 
 Daily Time Record system for Philippine government agencies. Employees clock in and out with a live photo as proof of attendance. See `PLAN.md` for scope and `CLAUDE.md` for project rules.
 
-**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR, photo audit with rule-based anomaly flags, a holiday calendar, an HR dashboard, a monthly attendance summary with CSV export, spreadsheet import of employees (.xlsx or .csv, with a preview step), printable QR ID cards, and an activity log. Not built yet: kiosk, the Tauri mobile shell. Admin, requests, approvals and audit screens are English only for now.
+**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR, photo audit with rule-based anomaly flags, a holiday calendar, an HR dashboard, a monthly attendance summary with CSV export, spreadsheet import of employees (.xlsx or .csv, with a preview step), printable QR ID cards, and an activity log. Not built yet: kiosk. The Tauri Android shell is scaffolded but untested (see below). Admin, requests, approvals and audit screens are English only for now.
 
 ## Run locally
 
@@ -33,6 +33,22 @@ Open http://localhost:5173 and sign in with any of these synthetic demo accounts
 Accounts HR creates get a temporary PIN and must choose their own at first sign-in.
 
 Camera access needs `localhost` or HTTPS. Testing from a phone on the local network needs an HTTPS tunnel or a local certificate.
+
+## Mobile app (Tauri 2, Android)
+
+`apps/mobile` wraps the same web app for Android. The Rust side builds today; the Android package has **not** been built or run yet.
+
+**Needs a Java compiler.** Gradle needs a JDK 17 or 21 (a JRE alone is not enough). On Fedora: `sudo dnf install java-21-openjdk-devel`. With only Java 25 the generated Gradle 8.14 fails with "Unsupported class file major version 69".
+
+```sh
+export ANDROID_HOME=$HOME/Android/Sdk NDK_HOME=$ANDROID_HOME/ndk/<version> JAVA_HOME=<a JDK 17 or 21>
+export VITE_API_URL=http://10.0.2.2:8080      # the emulator's address for your computer
+cd apps/mobile && cargo tauri android build --debug --target x86_64 --apk
+```
+
+The API must allow the app's origin: run it with `CORS_ORIGINS=http://localhost:5173,http://tauri.localhost`.
+
+The camera permission is declared in the manifest. Whether the Android WebView grants the live camera to the page is the first thing to test; it may need a small native Kotlin handler. The Tauri default icons are placeholders.
 
 ## API settings
 
