@@ -85,7 +85,12 @@ func main() {
 	} else {
 		log.Print("WARNING: PHOTO_KEY is not set, so photos are stored unencrypted")
 	}
+	mfaDefault := 1
+	if cfg.SeedDemo {
+		mfaDefault = 0 // the synthetic demo accounts sign in with a PIN only
+	}
 	appSettings, err := settings.New(ctx, pool, map[string]int{
+		settings.MFARequired:       mfaDefault,
 		settings.MinGapSeconds:     cfg.MinGapSecs,
 		settings.RequestWindowDays: cfg.RequestDays,
 		settings.HabitualLateDays:  cfg.HabitualLateDays,

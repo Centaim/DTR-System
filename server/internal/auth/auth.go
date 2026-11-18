@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-const tokenTTL = 12 * time.Hour
+const tokenTTL = 15 * time.Minute
 
 // HashPIN returns an argon2id hash in the form argon2id$salt$hash (base64).
 func HashPIN(pin string) (string, error) {
@@ -87,6 +87,25 @@ func IssueKioskToken(secret []byte, employeeID, kioskID int64) (string, error) {
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
+}
+
+// IssueMFAToken proves the PIN was right while the second factor is still pending.
+func IssueMFAToken(secret []byte, employeeID int64) (string, error) {
+	now := time.Now()
+	c := Claims{EmployeeID: employeeID, Kind: "mfa", RegisteredClaims: jwt.RegisteredClaims{
+		IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+	}}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
+}
+
+func ParseMFAToken(secret []byte, token string) (int64, error) {
+	var c Claims
+	t, err := jwt.ParseWithClaims(token, &c, func(t *jwt.Token) (any, error) { return secret, nil },
+		jwt.WithValidMethods([]string{"HS256"}))
+	if err != nil || !t.Valid || c.Kind != "mfa" {
+		return 0, errors.New("invalid token")
+	}
+	return c.EmployeeID, nil
 }
 
 func ParseKioskToken(secret []byte, token string) (employeeID, kioskID int64, err error) {

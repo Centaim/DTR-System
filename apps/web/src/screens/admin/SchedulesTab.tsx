@@ -31,7 +31,8 @@ export function SchedulesTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const year = new Date().getFullYear();
+  const thisYear = new Date().getFullYear();
+  const [year, setYear] = useState(thisYear);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [hol, setHol] = useState({ day: "", name: "" });
   const [holError, setHolError] = useState("");
@@ -208,6 +209,12 @@ export function SchedulesTab() {
           {t.holidaysHeading} {year}
         </h2>
         <p className="muted small">{t.holidayNote}</p>
+        <label className="field">
+          <span>{t.holidayYear}</span>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            {[thisYear - 1, thisYear, thisYear + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </label>
         {holidays.length === 0 && <p className="muted">{t.noHolidays}</p>}
         <ul className="rows flat">
           {holidays.map((h) => (

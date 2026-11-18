@@ -14,6 +14,7 @@ import { Alerts } from "./screens/Alerts";
 import { Accomplishments } from "./screens/Accomplishments";
 import { Events } from "./screens/Events";
 import { Logbook } from "./screens/Logbook";
+import { MfaSetup } from "./screens/MfaSetup";
 import { PrivacyNotice } from "./components/PrivacyNotice";
 
 const EMP_KEY = "dtr.employee";
@@ -75,7 +76,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const role = employee?.must_change_pin || !employee?.privacy_accepted ? undefined : employee.role;
+  const role = employee?.must_change_pin || !employee?.privacy_accepted || employee?.mfa_setup_required ? undefined : employee.role;
   useEffect(() => {
     if (role === "supervisor" || role === "hr_admin" || role === "super_admin") {
       Promise.all([api.approvals.pending(), api.dtrReview.pending()])
@@ -84,7 +85,7 @@ export default function App() {
     }
   }, [role]);
 
-  const ready = Boolean(employee && !employee.must_change_pin && employee.privacy_accepted);
+  const ready = Boolean(employee && !employee.must_change_pin && employee.privacy_accepted && !employee.mfa_setup_required);
   useEffect(() => {
     if (!ready) return;
     const poll = () => api.notifications.list().then((n) => setUnread(n.unread)).catch(() => undefined);
@@ -94,7 +95,7 @@ export default function App() {
   }, [ready]);
 
   const signOut = useCallback((sessionEnded: boolean) => {
-    api.setToken(null);
+    api.signOut();
     cacheEmployee(null);
     setEmployee(null);
     setScreen("home");
@@ -131,6 +132,8 @@ export default function App() {
         </main>
       </div>
     );
+  else if (employee.mfa_setup_required)
+    view = <MfaSetup onDone={() => signedIn({ ...employee, mfa_setup_required: false })} />;
   else if (screen === "more") view = <More employee={employee} approvals={approvalCount} onGo={setScreen} />;
   else if (screen === "alerts") view = <Alerts employee={employee} onRead={clearUnread} />;
   else if (screen === "accomplishments") view = <Accomplishments employee={employee} />;
@@ -142,7 +145,7 @@ export default function App() {
   else if (screen === "approvals") view = <Approvals onCount={setApprovalCount} />;
   else view = <Home employee={employee} onSignOut={signOut} />;
 
-  const showNav = !booting && employee !== null && !employee.must_change_pin && employee.privacy_accepted;
+  const showNav = !booting && employee !== null && !employee.must_change_pin && employee.privacy_accepted && !employee.mfa_setup_required;
 
   return (
     <LangContext.Provider value={ctx}>

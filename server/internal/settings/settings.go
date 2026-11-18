@@ -15,6 +15,8 @@ const (
 	DTREarlySubmit       = "dtr_allow_early_submit"
 	ApprovalEscalateDays = "approval_escalate_days"
 	DTRDeadlineDay       = "dtr_deadline_day"
+	MFARequired          = "mfa_required_admins"
+	SessionDays          = "session_days"
 	GeofenceMode         = "geofence_mode"
 	DeviceBindingMode    = "device_binding_mode"
 	PhotoRetentionDays   = "photo_retention_days"
@@ -50,6 +52,8 @@ func Definitions(defaults map[string]int) []Definition {
 		{ApprovalEscalateDays, "attendance", 3, 1, 30},
 		{PINMaxAttempts, "security", 5, 3, 20},
 		{PINLockMinutes, "security", 10, 1, 1440},
+		{MFARequired, "security", 1, 0, 1},
+		{SessionDays, "security", 14, 1, 90},
 		{PhotoRetentionDays, "privacy", 0, 0, 3650},
 		{PrivacyVersion, "privacy", 1, 1, 1000},
 		{GeofenceMode, "mobile", 0, 0, 2},

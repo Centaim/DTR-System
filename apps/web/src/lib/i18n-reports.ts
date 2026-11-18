@@ -66,5 +66,6 @@ export const reportsEn = {
   suspWhole: "Whole day",
   suspFromTime: (t: string) => `From ${t}`,
   suspAll: "All offices",
-  holidayNote: "Holidays excuse undertime and absence for everyone and print on the DTR.",
+  holidayNote: "National holidays for 2026 and 2027 are already loaded from Proclamations 1006 and 1427. Add Eid'l Fitr, Eid'l Adha and local holidays when they are declared.",
+  holidayYear: "Year",
 } as const;

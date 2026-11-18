@@ -389,6 +389,14 @@ function EmployeeForm({
             )}
           </section>
 
+          {viewerRole === "super_admin" && !self && privileged(emp.role) && (
+            <section className="panel form">
+              <button className="btn quiet" disabled={busy} onClick={() => run(async () => { await api.admin.resetMfa(emp.id); setSaved(t.done); })}>
+                {t.mfaReset}
+              </button>
+            </section>
+          )}
+
           {!self && (
             <section className="panel form danger-zone">
               <p className="muted small">{t.deactivateNote}</p>

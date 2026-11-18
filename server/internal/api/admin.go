@@ -64,6 +64,7 @@ func (a *API) adminRoutes(g fiber.Router) {
 	g.Post("/employees", a.createEmployee)
 	g.Patch("/employees/:id", a.updateEmployee)
 	g.Post("/employees/:id/reset-pin", a.resetPIN)
+	g.Post("/employees/:id/reset-mfa", a.requireRole(roleSuper), a.resetMFA)
 	g.Put("/employees/:id/schedule", a.assignSchedule)
 	g.Get("/schedules", a.listSchedules)
 	g.Post("/schedules", a.createSchedule)
@@ -291,6 +292,9 @@ func (a *API) resetPIN(c *fiber.Ctx) error {
 	}
 	if _, err := a.Pool.Exec(c.Context(),
 		`UPDATE employees SET pin_hash = $2, must_change_pin = TRUE, failed_attempts = 0, locked_until = NULL WHERE id = $1`, id, hash); err != nil {
+		return err
+	}
+	if err := a.revokeSessions(c.Context(), id); err != nil {
 		return err
 	}
 	a.audit(c, "employee.reset_pin", "employee:"+strconv.FormatInt(id, 10))

@@ -9,6 +9,7 @@ export interface Employee {
   role: string;
   must_change_pin: boolean;
   privacy_accepted: boolean;
+  mfa_setup_required: boolean;
 }
 
 export interface AdminEmployee {
@@ -344,6 +345,14 @@ export interface TrackerRow {
   version: number;
 }
 
+export interface LoginResult {
+  token?: string;
+  refresh_token?: string;
+  employee?: Employee;
+  mfa_required?: boolean;
+  mfa_token?: string;
+}
+
 export class NetworkError extends Error {}
 
 export class ApiError extends Error {
@@ -378,17 +387,74 @@ export const tokenStore = {
 
 let memoryToken: string | null = null;
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = memoryToken ?? tokenStore.get();
-  const headers = new Headers(init.headers);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+const REFRESH_KEY = "dtr.refresh";
 
+const refreshStore = {
+  get(): string | null {
+    try {
+      return localStorage.getItem(REFRESH_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set(token: string | null) {
+    try {
+      if (token) localStorage.setItem(REFRESH_KEY, token);
+      else localStorage.removeItem(REFRESH_KEY);
+    } catch {
+      /* storage unavailable: the session lasts until the access token expires */
+    }
+  },
+};
+
+let refreshing: Promise<boolean> | null = null;
+
+/** Swaps the refresh token once, however many requests noticed the expiry at the same time. */
+function renewSession(): Promise<boolean> {
+  const current = refreshStore.get();
+  if (!current) return Promise.resolve(false);
+  refreshing ??= fetch(API_BASE + "/api/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: current }),
+  })
+    .then(async (res) => {
+      if (res.status === 401) {
+        api.setToken(null);
+        return false;
+      }
+      if (!res.ok) return false;
+      const body = (await res.json()) as { token: string; refresh_token: string };
+      api.setSession(body.token, body.refresh_token);
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+/** Sends a request, renewing an expired access token once. */
+async function send(path: string, init: RequestInit): Promise<Response> {
+  const attempt = () => {
+    const token = memoryToken ?? tokenStore.get();
+    const headers = new Headers(init.headers);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(API_BASE + path, { ...init, headers });
+  };
   let res: Response;
   try {
-    res = await fetch(API_BASE + path, { ...init, headers });
+    res = await attempt();
+    if (res.status === 401 && !path.startsWith("/api/auth/") && (await renewSession())) res = await attempt();
   } catch {
     throw new NetworkError("network");
   }
+  return res;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await send(path, init);
   if (!res.ok) {
     let code = "error";
     let message = "";
@@ -405,13 +471,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function requestBlob(path: string): Promise<Blob> {
-  const token = memoryToken ?? tokenStore.get();
-  let res: Response;
-  try {
-    res = await fetch(API_BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  } catch {
-    throw new NetworkError("network");
-  }
+  const res = await send(path, {});
   if (!res.ok) throw new ApiError(res.status, "error", "");
   return res.blob();
 }
@@ -426,16 +486,31 @@ export const api = {
   setToken(token: string | null) {
     memoryToken = token;
     tokenStore.set(token);
+    if (!token) refreshStore.set(null);
+  },
+  setSession(token: string, refresh: string) {
+    memoryToken = token;
+    tokenStore.set(token);
+    refreshStore.set(refresh);
+  },
+  signOut() {
+    const refresh = refreshStore.get();
+    api.setToken(null);
+    if (refresh) void fetch(API_BASE + "/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: refresh }) }).catch(() => undefined);
   },
   hasToken: () => Boolean(memoryToken ?? tokenStore.get()),
 
   login: (employee_no: string, pin: string) =>
-    request<{ token: string; employee: Employee }>("/api/auth/login", {
+    request<LoginResult>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ employee_no, pin }),
     }),
 
+  mfaLogin: (mfa_token: string, code: string) =>
+    request<LoginResult>("/api/auth/mfa", json("POST", { mfa_token, code })),
+  mfaStart: () => request<{ secret: string; url: string }>("/api/me/mfa/start", { method: "POST" }),
+  mfaConfirm: (code: string) => request<{ recovery_codes: string[] }>("/api/me/mfa/confirm", json("POST", { code })),
   me: () => request<Employee>("/api/me"),
   changePin: (current_pin: string, new_pin: string) =>
     request<{ ok: boolean }>("/api/me/pin", json("POST", { current_pin, new_pin })),
@@ -569,6 +644,7 @@ export const api = {
     deviceRequests: () => request<DeviceRequest[]>("/api/admin/device-requests"),
     decideDevice: (id: number, approve: boolean) =>
       request<{ ok: boolean }>(`/api/admin/device-requests/${id}/${approve ? "approve" : "reject"}`, { method: "POST" }),
+    resetMfa: (id: number) => request<{ ok: boolean }>(`/api/admin/employees/${id}/reset-mfa`, { method: "POST" }),
     createHoliday: (body: Holiday) => request<Holiday>("/api/admin/holidays", json("POST", body)),
     deleteHoliday: (day: string) =>
       request<{ ok: boolean }>(`/api/admin/holidays/${day}`, { method: "DELETE" }),

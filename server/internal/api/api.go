@@ -65,14 +65,15 @@ type API struct {
 }
 
 type employee struct {
-	ID              int64  `json:"id"`
-	EmployeeNo      string `json:"employee_no"`
-	FullName        string `json:"full_name"`
-	Position        string `json:"position"`
-	Office          string `json:"office"`
-	Role            string `json:"role"`
-	MustChangePIN   bool   `json:"must_change_pin"`
-	PrivacyAccepted bool   `json:"privacy_accepted"`
+	ID               int64  `json:"id"`
+	EmployeeNo       string `json:"employee_no"`
+	FullName         string `json:"full_name"`
+	Position         string `json:"position"`
+	Office           string `json:"office"`
+	Role             string `json:"role"`
+	MustChangePIN    bool   `json:"must_change_pin"`
+	PrivacyAccepted  bool   `json:"privacy_accepted"`
+	MFASetupRequired bool   `json:"mfa_setup_required"`
 }
 
 const empCols = `id, employee_no, full_name, position, office, role::text, must_change_pin`
@@ -97,6 +98,10 @@ func rateLimit() fiber.Handler {
 	})
 }
 
+func rateLimit60() fiber.Handler {
+	return limiter.New(limiter.Config{Max: 60, Expiration: time.Minute})
+}
+
 func (a *API) Routes(app *fiber.App) {
 	app.Get("/api/health", func(c *fiber.Ctx) error {
 		if err := a.Pool.Ping(c.Context()); err != nil {
@@ -106,6 +111,9 @@ func (a *API) Routes(app *fiber.App) {
 	})
 
 	app.Post("/api/auth/login", rateLimit(), a.login)
+	app.Post("/api/auth/mfa", rateLimit(), a.mfaLogin)
+	app.Post("/api/auth/refresh", rateLimit60(), a.refresh)
+	app.Post("/api/auth/logout", a.logout)
 
 	// Kiosks authenticate with a device token, so these go before the session guard on /api.
 	a.kioskRoutes(app)
@@ -116,6 +124,8 @@ func (a *API) Routes(app *fiber.App) {
 	secured.Get("/me", a.me)
 	secured.Post("/me/pin", rateLimit(), a.changePIN)
 	secured.Post("/me/privacy", a.acceptPrivacy)
+	secured.Post("/me/mfa/start", a.mfaStart)
+	secured.Post("/me/mfa/confirm", rateLimit(), a.mfaConfirm)
 	secured.Get("/attendance/today", a.today)
 	secured.Post("/attendance/clock", a.clock)
 	a.engageRoutes(secured)
@@ -203,14 +213,18 @@ func (a *API) login(c *fiber.Ctx) error {
 	if res != credOK {
 		return a.credentialError(c, res)
 	}
-	if e.PrivacyAccepted, err = a.privacyAccepted(c.Context(), e.ID); err != nil {
+	var mfa bool
+	if err := a.Pool.QueryRow(c.Context(), `SELECT mfa_enabled FROM employees WHERE id=$1`, e.ID).Scan(&mfa); err != nil {
 		return err
 	}
-	token, err := auth.IssueToken(a.JWTSecret, e.ID)
-	if err != nil {
-		return err
+	if mfa {
+		token, err := auth.IssueMFAToken(a.JWTSecret, e.ID)
+		if err != nil {
+			return err
+		}
+		return c.JSON(fiber.Map{"mfa_required": true, "mfa_token": token})
 	}
-	return c.JSON(fiber.Map{"token": token, "employee": e})
+	return a.finishLogin(c, e)
 }
 
 // requireAuth checks the token, then re-reads the account every request so a
@@ -226,12 +240,12 @@ func (a *API) requireAuth(c *fiber.Ctx) error {
 	}
 
 	var role string
-	var active, mustChange, accepted bool
+	var active, mustChange, accepted, mfa bool
 	err = a.Pool.QueryRow(c.Context(), `
-		SELECT role::text, active, must_change_pin,
+		SELECT role::text, active, must_change_pin, mfa_enabled,
 		       EXISTS (SELECT 1 FROM privacy_acceptances p WHERE p.employee_id = e.id AND p.version = $2)
 		  FROM employees e WHERE e.id = $1`, id, a.Settings.Int(settings.PrivacyVersion)).
-		Scan(&role, &active, &mustChange, &accepted)
+		Scan(&role, &active, &mustChange, &mfa, &accepted)
 	if err != nil || !active {
 		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "This account is no longer active.")
 	}
@@ -240,6 +254,9 @@ func (a *API) requireAuth(c *fiber.Ctx) error {
 	}
 	if !accepted && c.Path() != "/api/me" && c.Path() != "/api/me/pin" && c.Path() != "/api/me/privacy" {
 		return apiError(c, fiber.StatusForbidden, "privacy_required", "Read and accept the privacy notice to continue.")
+	}
+	if a.mfaNeeded(role, mfa) && !strings.HasPrefix(c.Path(), "/api/me") {
+		return apiError(c, fiber.StatusForbidden, "mfa_setup_required", "Set up two-step sign-in to continue.")
 	}
 	c.Locals("employee_id", id)
 	c.Locals("role", role)
@@ -282,6 +299,11 @@ func (a *API) me(c *fiber.Ctx) error {
 	if e.PrivacyAccepted, err = a.privacyAccepted(c.Context(), e.ID); err != nil {
 		return err
 	}
+	var mfa bool
+	if err := a.Pool.QueryRow(c.Context(), `SELECT mfa_enabled FROM employees WHERE id=$1`, e.ID).Scan(&mfa); err != nil {
+		return err
+	}
+	e.MFASetupRequired = a.mfaNeeded(e.Role, mfa)
 	return c.JSON(e)
 }
 
@@ -315,6 +337,9 @@ func (a *API) changePIN(c *fiber.Ctx) error {
 		return err
 	}
 	a.audit(c, "pin.change", "employee:"+strconv.FormatInt(actorID(c), 10))
+	if err := a.revokeSessions(c.Context(), actorID(c)); err != nil {
+		return err
+	}
 	return c.JSON(fiber.Map{"ok": true})
 }
 
