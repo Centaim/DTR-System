@@ -16,7 +16,7 @@ export function BottomNav({
 }) {
   const { t } = useT();
   const approver = role === "supervisor" || role === "hr_admin" || role === "super_admin";
-  const admin = role === "hr_admin" || role === "super_admin";
+  const admin = role === "hr_admin" || role === "super_admin" || role === "auditor";
 
   const items: { id: Screen; label: string; icon: typeof House; badge?: number }[] = [
     { id: "home", label: t.navHome, icon: House },

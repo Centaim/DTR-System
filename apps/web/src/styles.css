@@ -1261,3 +1261,82 @@ ul {
     padding-bottom: 0;
   }
 }
+
+/* ---------- Photo audit ---------- */
+
+.seg.wide {
+  display: flex;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.seg.wide .seg-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 0.8125rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tag.warn {
+  border-style: dashed;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.tag.status-rejected-plain {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.photo-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 560px) {
+  .photo-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.photo-pair figure {
+  margin: 0;
+}
+
+.photo-pair figcaption {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+.audit-photo,
+.photo-note {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  background: var(--ground);
+}
+
+.photo-note {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.rows.flat {
+  margin-top: 0;
+}

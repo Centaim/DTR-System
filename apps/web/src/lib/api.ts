@@ -68,6 +68,25 @@ export interface RequestInput {
   reason: string;
 }
 
+export interface AuditFlag {
+  kind: string;
+  detail: string;
+}
+
+export interface AuditItem {
+  log_id: number;
+  employee: string;
+  employee_no: string;
+  slot: string;
+  recorded_at: string;
+  channel: string;
+  offline: boolean;
+  device_id: string;
+  flags: AuditFlag[];
+  previous_log_id: number | null;
+  review: { outcome: string; note: string; reviewer: string; reviewed_at: string } | null;
+}
+
 export interface LogEntry {
   id: number;
   slot: string;
@@ -162,6 +181,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const token = memoryToken ?? tokenStore.get();
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new NetworkError("network");
+  }
+  if (!res.ok) throw new ApiError(res.status, "error", "");
+  return res.blob();
+}
+
 const json = (method: string, body: unknown): RequestInit => ({
   method,
   headers: { "Content-Type": "application/json" },
@@ -195,6 +226,14 @@ export const api = {
     pending: () => request<RequestItem[]>("/api/approvals/"),
     decide: (id: number, approve: boolean, note: string) =>
       request<RequestItem>(`/api/approvals/${id}/decide`, json("POST", { approve, note })),
+  },
+
+  audit: {
+    list: (view: string, date: string) =>
+      request<AuditItem[]>(`/api/audit/logs?view=${view}&date=${encodeURIComponent(date)}`),
+    photo: (logId: number) => requestBlob(`/api/audit/logs/${logId}/photo`),
+    review: (logId: number, outcome: "cleared" | "follow_up", note: string) =>
+      request<{ ok: boolean }>(`/api/audit/logs/${logId}/review`, json("POST", { outcome, note })),
   },
 
   admin: {

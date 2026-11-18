@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"dtr/server/internal/dtr"
+	"dtr/server/internal/photocheck"
 	"dtr/server/internal/storage"
 
 	"github.com/jackc/pgx/v5"
@@ -53,14 +54,33 @@ type ClockInput struct {
 	Channel        string
 }
 
+// FlagRules are the thresholds for anomaly flags. Flags only inform HR; they
+// never change a record or penalize anyone.
+type FlagRules struct {
+	DarkLuma        float64       // mean brightness below this is a dark photo
+	SimilarDistance int           // dHash bits at or below this count as the same photo
+	SkewTolerance   time.Duration // online logs: device clock vs server
+	LateSync        time.Duration // offline logs: delay before reaching the server
+	SharedDevice    time.Duration // another employee used this device within this window
+	ReuseLookback   time.Duration
+}
+
+func DefaultFlagRules() FlagRules {
+	return FlagRules{
+		DarkLuma: 45, SimilarDistance: 2, SkewTolerance: 5 * time.Minute,
+		LateSync: 2 * time.Hour, SharedDevice: 10 * time.Minute, ReuseLookback: 60 * 24 * time.Hour,
+	}
+}
+
 type Service struct {
 	pool   *pgxpool.Pool
 	store  storage.Store
 	minGap time.Duration
+	rules  FlagRules
 }
 
 func NewService(pool *pgxpool.Pool, store storage.Store, minGap time.Duration) *Service {
-	return &Service{pool: pool, store: store, minGap: minGap}
+	return &Service{pool: pool, store: store, minGap: minGap, rules: DefaultFlagRules()}
 }
 
 const logCols = `id, slot::text, recorded_at, client_time, offline, channel::text`
@@ -78,6 +98,7 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 	if !validImage(in.Photo) {
 		return Log{}, false, ErrBadPhoto
 	}
+	pc := photocheck.Analyze(in.Photo)
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -134,11 +155,11 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 	l, err := scanLog(tx.QueryRow(ctx, `
 		INSERT INTO attendance_logs
 		  (employee_id, work_date, slot, client_time, channel, device_id,
-		   latitude, longitude, offline, idempotency_key, photo_key, photo_sha256)
-		VALUES ($1,$2,$3::log_slot,$4,$5::log_channel,$6,$7,$8,$9,$10,$11,$12)
+		   latitude, longitude, offline, idempotency_key, photo_key, photo_sha256, photo_dhash)
+		VALUES ($1,$2,$3::log_slot,$4,$5::log_channel,$6,$7,$8,$9,$10,$11,$12,$13)
 		RETURNING `+logCols,
 		employeeID, workDate, Slots[count], in.ClientTime, channel, in.DeviceID,
-		in.Latitude, in.Longitude, in.Offline, in.IdempotencyKey, key, sum))
+		in.Latitude, in.Longitude, in.Offline, in.IdempotencyKey, key, sum, dhashArg(pc)))
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -146,10 +167,100 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 		}
 		return Log{}, false, err
 	}
+	if err := s.flag(ctx, tx, employeeID, l, in, channel, pc, sum); err != nil {
+		return Log{}, false, fmt.Errorf("flag log: %w", err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Log{}, false, err
 	}
 	return l, false, nil
+}
+
+func dhashArg(pc photocheck.Result) any {
+	if !pc.Decoded {
+		return nil
+	}
+	return int64(pc.DHash)
+}
+
+// flag records anomaly flags for a new log, in the same transaction as the log.
+func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, in ClockInput, channel string, pc photocheck.Result, sha string) error {
+	type finding struct{ kind, detail string }
+	var found []finding
+
+	if pc.Decoded && pc.Luma < s.rules.DarkLuma {
+		found = append(found, finding{"dark_photo", fmt.Sprintf("Average brightness %.0f of 255", pc.Luma)})
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT id, photo_sha256, photo_dhash FROM attendance_logs
+		 WHERE employee_id = $1 AND id <> $2 AND recorded_at > now() - ($3 * interval '1 second')
+		 ORDER BY recorded_at DESC LIMIT 300`,
+		employeeID, l.ID, int64(s.rules.ReuseLookback/time.Second))
+	if err != nil {
+		return err
+	}
+	var identical, similar string
+	for rows.Next() {
+		var id int64
+		var prevSum string
+		var prevHash *int64
+		if err := rows.Scan(&id, &prevSum, &prevHash); err != nil {
+			rows.Close()
+			return err
+		}
+		if prevSum == sha && identical == "" {
+			identical = fmt.Sprintf("Identical to log #%d", id)
+		} else if pc.Decoded && photocheck.Informative(pc.DHash) && prevHash != nil && photocheck.Informative(uint64(*prevHash)) && similar == "" {
+			if d := photocheck.Distance(pc.DHash, uint64(*prevHash)); d <= s.rules.SimilarDistance {
+				similar = fmt.Sprintf("Nearly identical to log #%d (%d of 64 bits differ)", id, d)
+			}
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if identical != "" {
+		found = append(found, finding{"reused_photo", identical})
+	} else if similar != "" {
+		found = append(found, finding{"similar_photo", similar})
+	}
+
+	if in.DeviceID != "" && channel == "mobile" {
+		var no string
+		var secs int
+		err := tx.QueryRow(ctx, `
+			SELECT e.employee_no, extract(epoch FROM now() - l.recorded_at)::int
+			  FROM attendance_logs l JOIN employees e ON e.id = l.employee_id
+			 WHERE l.device_id = $1 AND l.employee_id <> $2 AND l.channel = 'mobile'
+			   AND l.recorded_at > now() - ($3 * interval '1 second')
+			 ORDER BY l.recorded_at DESC LIMIT 1`,
+			in.DeviceID, employeeID, int64(s.rules.SharedDevice/time.Second)).Scan(&no, &secs)
+		if err == nil {
+			found = append(found, finding{"shared_device", fmt.Sprintf("Same device used by %s %d min earlier", no, secs/60)})
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+
+	if in.ClientTime != nil {
+		diff := l.RecordedAt.Sub(*in.ClientTime)
+		if !in.Offline && (diff > s.rules.SkewTolerance || -diff > s.rules.SkewTolerance) {
+			found = append(found, finding{"clock_skew", fmt.Sprintf("Device clock differs from the server by %d min", int(diff.Abs().Minutes()))})
+		}
+		if in.Offline && diff > s.rules.LateSync {
+			found = append(found, finding{"late_sync", fmt.Sprintf("Saved offline and reached the server %d min later", int(diff.Minutes()))})
+		}
+	}
+
+	for _, f := range found {
+		if _, err := tx.Exec(ctx, `INSERT INTO attendance_flags (log_id, kind, detail)
+			VALUES ($1, $2::flag_kind, $3) ON CONFLICT DO NOTHING`, l.ID, f.kind, f.detail); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) Today(ctx context.Context, employeeID int64) (Today, error) {

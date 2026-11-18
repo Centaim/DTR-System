@@ -12,8 +12,10 @@ import (
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
 	"dtr/server/internal/dtr"
+	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
+	"dtr/server/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
@@ -40,6 +42,8 @@ type API struct {
 	Attendance *attendance.Service
 	Schedules  *schedule.Store
 	Requests   *requests.Store
+	PhotoAudit *photoaudit.Store
+	Photos     storage.Store
 	JWTSecret  []byte
 	MaxPhotoMB int
 	Loc        *time.Location
@@ -94,6 +98,7 @@ func (a *API) Routes(app *fiber.App) {
 	secured.Post("/attendance/clock", a.clock)
 	secured.Get("/dtr", a.dtr)
 	a.requestRoutes(secured)
+	a.photoAuditRoutes(secured)
 
 	a.adminRoutes(secured.Group("/admin", a.requireRole(roleHR, roleSuper)))
 }
@@ -361,3 +366,5 @@ func (a *API) dtr(c *fiber.Ctx) error {
 }
 
 func fmtHM(m int) string { return time.Date(2000, 1, 1, m/60, m%60, 0, 0, time.UTC).Format("15:04") }
+
+func nowDate(loc *time.Location) string { return time.Now().In(loc).Format("2006-01-02") }
