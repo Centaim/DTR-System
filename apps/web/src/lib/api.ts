@@ -130,6 +130,32 @@ export interface SummaryData {
   rows: SummaryRow[];
 }
 
+export interface ImportRow {
+  line: number;
+  employee_no: string;
+  full_name: string;
+  position: string;
+  office: string;
+  role: string;
+  employment: string;
+  status: "ok" | "duplicate" | "invalid";
+  message: string;
+}
+
+export interface ImportResult {
+  rows: ImportRow[];
+  summary: { ok: number; duplicate: number; invalid: number };
+  created: { employee_no: string; full_name: string; temp_pin: string }[];
+}
+
+export interface ActivityRow {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  target: string;
+}
+
 export interface LogEntry {
   id: number;
   slot: string;
@@ -281,6 +307,7 @@ export const api = {
   },
 
   audit: {
+    activity: () => request<ActivityRow[]>("/api/audit/activity"),
     list: (view: string, date: string) =>
       request<AuditItem[]>(`/api/audit/logs?view=${view}&date=${encodeURIComponent(date)}`),
     photo: (logId: number) => requestBlob(`/api/audit/logs/${logId}/photo`),
@@ -297,6 +324,11 @@ export const api = {
       request<AdminEmployee>(`/api/admin/employees/${id}`, json("PATCH", body)),
     resetPin: (id: number) =>
       request<{ temp_pin: string }>(`/api/admin/employees/${id}/reset-pin`, { method: "POST" }),
+    importEmployees: (file: File, commit: boolean) => {
+      const form = new FormData();
+      form.set("file", file);
+      return request<ImportResult>(`/api/admin/employees/import?commit=${commit}`, { method: "POST", body: form });
+    },
     createHoliday: (body: Holiday) => request<Holiday>("/api/admin/holidays", json("POST", body)),
     deleteHoliday: (day: string) =>
       request<{ ok: boolean }>(`/api/admin/holidays/${day}`, { method: "DELETE" }),

@@ -3,6 +3,7 @@ import { adminEn } from "./i18n-admin";
 import { requestsEn } from "./i18n-requests";
 import { auditEn } from "./i18n-audit";
 import { reportsEn } from "./i18n-reports";
+import { peopleEn } from "./i18n-people";
 
 export type Lang = "en" | "fil";
 
@@ -86,6 +87,7 @@ const dict = {
     ...requestsEn,
     ...auditEn,
     ...reportsEn,
+    ...peopleEn,
   },
   fil: {
     appName: "DTR",

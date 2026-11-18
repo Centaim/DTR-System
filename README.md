@@ -2,7 +2,7 @@
 
 Daily Time Record system for Philippine government agencies. Employees clock in and out with a live photo as proof of attendance. See `PLAN.md` for scope and `CLAUDE.md` for project rules.
 
-**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR, photo audit with rule-based anomaly flags, a holiday calendar, an HR dashboard, and a monthly attendance summary with CSV export. Not built yet: kiosk, the Tauri mobile shell. Admin, requests, approvals and audit screens are English only for now.
+**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, dated schedules, and requests (missed-log corrections, leave, official business, travel orders) with supervisor approval that feeds the DTR, photo audit with rule-based anomaly flags, a holiday calendar, an HR dashboard, a monthly attendance summary with CSV export, spreadsheet import of employees (.xlsx or .csv, with a preview step), printable QR ID cards, and an activity log. Not built yet: kiosk, the Tauri mobile shell. Admin, requests, approvals and audit screens are English only for now.
 
 ## Run locally
 

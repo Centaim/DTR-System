@@ -13,6 +13,7 @@ import (
 	"dtr/server/internal/auth"
 	"dtr/server/internal/dtr"
 	"dtr/server/internal/holidays"
+	"dtr/server/internal/importer"
 	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
@@ -46,6 +47,7 @@ type API struct {
 	Requests   *requests.Store
 	PhotoAudit *photoaudit.Store
 	Holidays   *holidays.Store
+	Importer   *importer.Service
 	Reports    *reports.Service
 	Photos     storage.Store
 	JWTSecret  []byte

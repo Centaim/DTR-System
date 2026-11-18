@@ -12,6 +12,7 @@ import (
 
 func (a *API) photoAuditRoutes(secured fiber.Router) {
 	g := secured.Group("/audit", a.requireRole(roleHR, roleSuper, roleAuditor))
+	g.Get("/activity", a.listAudit)
 	g.Get("/logs", a.auditList)
 	g.Get("/logs/:id/photo", a.auditPhoto)
 	g.Post("/logs/:id/review", a.requireRole(roleHR, roleSuper), a.auditReview)

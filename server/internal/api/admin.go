@@ -2,11 +2,13 @@ package api
 
 import (
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"time"
 
 	"dtr/server/internal/auth"
+	"dtr/server/internal/importer"
 	"dtr/server/internal/schedule"
 
 	"github.com/gofiber/fiber/v2"
@@ -62,7 +64,7 @@ func (a *API) adminRoutes(g fiber.Router) {
 	g.Put("/employees/:id/schedule", a.assignSchedule)
 	g.Get("/schedules", a.listSchedules)
 	g.Post("/schedules", a.createSchedule)
-	g.Get("/audit", a.listAudit)
+	g.Post("/employees/import", a.importEmployees)
 }
 
 func (a *API) listEmployees(c *fiber.Ctx) error {
@@ -354,6 +356,59 @@ func (a *API) listAudit(c *fiber.Ctx) error {
 			return err
 		}
 		out = append(out, r)
+	}
+	return c.JSON(out)
+}
+
+const maxImportBytes = 2 << 20
+
+// importEmployees reads an uploaded spreadsheet. Without commit=true it only
+// previews, so HR sees every problem before any account is created.
+func (a *API) importEmployees(c *fiber.Ctx) error {
+	fh, err := c.FormFile("file")
+	if err != nil {
+		return apiError(c, fiber.StatusBadRequest, "file_required", "Choose a spreadsheet to import.")
+	}
+	if fh.Size > maxImportBytes {
+		return apiError(c, fiber.StatusRequestEntityTooLarge, "file_too_large", "The file is larger than 2 MB.")
+	}
+	f, err := fh.Open()
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxImportBytes+1))
+	if err != nil {
+		return err
+	}
+
+	rows, err := importer.Parse(data, fh.Filename)
+	if err != nil {
+		if errors.Is(err, importer.ErrFile) {
+			return apiError(c, fiber.StatusUnprocessableEntity, "bad_file", importer.Message(err))
+		}
+		return err
+	}
+	if err := a.Importer.MarkExisting(c.Context(), rows); err != nil {
+		return err
+	}
+
+	summary := fiber.Map{"ok": 0, "duplicate": 0, "invalid": 0}
+	for _, r := range rows {
+		summary[r.Status] = summary[r.Status].(int) + 1
+	}
+	out := fiber.Map{"rows": rows, "summary": summary, "created": []importer.Created{}}
+
+	if c.Query("commit") == "true" {
+		created, err := a.Importer.Commit(c.Context(), rows)
+		if err != nil {
+			return err
+		}
+		a.audit(c, "employees.import", "count:"+strconv.Itoa(len(created)))
+		if created == nil {
+			created = []importer.Created{}
+		}
+		out["created"] = created
 	}
 	return c.JSON(out)
 }

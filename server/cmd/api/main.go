@@ -16,6 +16,7 @@ import (
 	"dtr/server/internal/config"
 	"dtr/server/internal/db"
 	"dtr/server/internal/holidays"
+	"dtr/server/internal/importer"
 	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
@@ -97,6 +98,7 @@ func main() {
 		Requests:   reqStore,
 		PhotoAudit: photoaudit.NewStore(pool),
 		Holidays:   holStore,
+		Importer:   importer.NewService(pool),
 		Reports:    reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, cfg.HabitualLateDays),
 		Photos:     store,
 		JWTSecret:  cfg.JWTSecret,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Plus, ChevronLeft } from "lucide-react";
+import { Plus, ChevronLeft, FileUp, IdCard } from "lucide-react";
 import {
   ApiError,
   NetworkError,
@@ -10,6 +10,8 @@ import {
 } from "../../lib/api";
 import { useT, type Strings } from "../../lib/i18n";
 import { TempPin } from "./TempPin";
+import { ImportScreen } from "./ImportScreen";
+import { IdCards } from "./IdCards";
 
 const ROLES = ["employee", "supervisor", "timekeeper", "auditor", "hr_admin", "super_admin"] as const;
 const EMPLOYMENT = ["plantilla", "casual", "contract_of_service", "job_order"] as const;
@@ -21,7 +23,7 @@ const empLabel = (t: Strings, e: string) => (t[`emp_${e}` as keyof Strings] as s
 const today = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
 
-type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; emp: AdminEmployee };
+type Mode = { kind: "list" } | { kind: "create" } | { kind: "import" } | { kind: "cards" } | { kind: "edit"; emp: AdminEmployee };
 
 function message(e: unknown, t: Strings): string {
   if (e instanceof NetworkError) return t.errNetwork;
@@ -66,6 +68,13 @@ export function EmployeesTab({ viewerRole, viewerId }: { viewerRole: string; vie
     );
   }
 
+  const backToList = () => {
+    setMode({ kind: "list" });
+    load();
+  };
+  if (mode.kind === "import") return <ImportScreen onBack={backToList} />;
+  if (mode.kind === "cards") return <IdCards onBack={backToList} />;
+
   if (mode.kind !== "list") {
     return (
       <EmployeeForm
@@ -90,9 +99,17 @@ export function EmployeesTab({ viewerRole, viewerId }: { viewerRole: string; vie
         <h2 id="emp-h" className="panel-h">
           {t.tabEmployees}
         </h2>
-        <button className="btn primary" onClick={() => setMode({ kind: "create" })}>
-          <Plus aria-hidden="true" size={20} /> {t.addEmployee}
-        </button>
+        <div className="actions tight">
+          <button className="btn primary" onClick={() => setMode({ kind: "create" })}>
+            <Plus aria-hidden="true" size={20} /> {t.addEmployee}
+          </button>
+          <button className="btn quiet" onClick={() => setMode({ kind: "import" })}>
+            <FileUp aria-hidden="true" size={20} /> {t.importEmployees}
+          </button>
+          <button className="btn quiet" onClick={() => setMode({ kind: "cards" })}>
+            <IdCard aria-hidden="true" size={20} /> {t.idCards}
+          </button>
+        </div>
       </div>
       <label className="field">
         <span className="sr-only">{t.search}</span>
