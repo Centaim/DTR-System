@@ -16,6 +16,8 @@ type Config struct {
 	MinGapSecs       int // blocks duplicate taps; a setting, not a constant
 	RequestDays      int // how far back a request may be dated
 	HabitualLateDays int // late days in a month that flag habitual tardiness
+	PINMaxAttempts   int // wrong PINs in a row before the account locks
+	PINLockMinutes   int
 	CORSOrigins      string
 	SeedDemo         bool
 }
@@ -54,6 +56,15 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("HABITUAL_LATE_DAYS must be a positive integer")
 	}
 	c.HabitualLateDays = hab
+	maxTries, err := strconv.Atoi(env("PIN_MAX_ATTEMPTS", "5"))
+	if err != nil || maxTries < 3 {
+		return c, fmt.Errorf("PIN_MAX_ATTEMPTS must be 3 or more")
+	}
+	lock, err := strconv.Atoi(env("PIN_LOCK_MINUTES", "10"))
+	if err != nil || lock < 1 {
+		return c, fmt.Errorf("PIN_LOCK_MINUTES must be a positive integer")
+	}
+	c.PINMaxAttempts, c.PINLockMinutes = maxTries, lock
 	return c, nil
 }
 

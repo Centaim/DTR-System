@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export interface Employee {
   id: number;
@@ -156,6 +156,14 @@ export interface ActivityRow {
   target: string;
 }
 
+export interface KioskRow {
+  id: number;
+  name: string;
+  office: string;
+  active: boolean;
+  last_seen_at: string | null;
+}
+
 export interface LogEntry {
   id: number;
   slot: string;
@@ -231,7 +239,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(BASE + path, { ...init, headers });
+    res = await fetch(API_BASE + path, { ...init, headers });
   } catch {
     throw new NetworkError("network");
   }
@@ -254,7 +262,7 @@ async function requestBlob(path: string): Promise<Blob> {
   const token = memoryToken ?? tokenStore.get();
   let res: Response;
   try {
-    res = await fetch(BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    res = await fetch(API_BASE + path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   } catch {
     throw new NetworkError("network");
   }
@@ -329,6 +337,11 @@ export const api = {
       form.set("file", file);
       return request<ImportResult>(`/api/admin/employees/import?commit=${commit}`, { method: "POST", body: form });
     },
+    kiosks: () => request<KioskRow[]>("/api/admin/kiosks"),
+    createKiosk: (name: string, office: string) =>
+      request<{ kiosk: KioskRow; token: string }>("/api/admin/kiosks", json("POST", { name, office })),
+    setKioskActive: (id: number, active: boolean) =>
+      request<{ ok: boolean }>(`/api/admin/kiosks/${id}`, json("PATCH", { active })),
     createHoliday: (body: Holiday) => request<Holiday>("/api/admin/holidays", json("POST", body)),
     deleteHoliday: (day: string) =>
       request<{ ok: boolean }>(`/api/admin/holidays/${day}`, { method: "DELETE" }),

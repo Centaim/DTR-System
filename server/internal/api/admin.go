@@ -9,6 +9,7 @@ import (
 
 	"dtr/server/internal/auth"
 	"dtr/server/internal/importer"
+	"dtr/server/internal/kiosk"
 	"dtr/server/internal/schedule"
 
 	"github.com/gofiber/fiber/v2"
@@ -65,6 +66,9 @@ func (a *API) adminRoutes(g fiber.Router) {
 	g.Get("/schedules", a.listSchedules)
 	g.Post("/schedules", a.createSchedule)
 	g.Post("/employees/import", a.importEmployees)
+	g.Get("/kiosks", a.listKiosks)
+	g.Post("/kiosks", a.createKiosk)
+	g.Patch("/kiosks/:id", a.setKioskActive)
 }
 
 func (a *API) listEmployees(c *fiber.Ctx) error {
@@ -270,7 +274,7 @@ func (a *API) resetPIN(c *fiber.Ctx) error {
 		return err
 	}
 	if _, err := a.Pool.Exec(c.Context(),
-		`UPDATE employees SET pin_hash = $2, must_change_pin = TRUE WHERE id = $1`, id, hash); err != nil {
+		`UPDATE employees SET pin_hash = $2, must_change_pin = TRUE, failed_attempts = 0, locked_until = NULL WHERE id = $1`, id, hash); err != nil {
 		return err
 	}
 	a.audit(c, "employee.reset_pin", "employee:"+strconv.FormatInt(id, 10))
@@ -411,4 +415,55 @@ func (a *API) importEmployees(c *fiber.Ctx) error {
 		out["created"] = created
 	}
 	return c.JSON(out)
+}
+
+func (a *API) listKiosks(c *fiber.Ctx) error {
+	list, err := a.Kiosks.List(c.Context())
+	if err != nil {
+		return err
+	}
+	return c.JSON(list)
+}
+
+// createKiosk registers a kiosk. Its token is shown once, in this response.
+func (a *API) createKiosk(c *fiber.Ctx) error {
+	var in struct {
+		Name   string `json:"name"`
+		Office string `json:"office"`
+	}
+	if err := c.BodyParser(&in); err != nil {
+		return apiError(c, fiber.StatusBadRequest, "bad_request", "The form could not be read.")
+	}
+	k, token, err := a.Kiosks.Create(c.Context(), in.Name, in.Office, actorID(c))
+	switch {
+	case errors.Is(err, kiosk.ErrInvalid):
+		return apiError(c, fiber.StatusUnprocessableEntity, "invalid", kiosk.Message(err))
+	case errors.Is(err, kiosk.ErrDuplicate):
+		return apiError(c, fiber.StatusConflict, "duplicate", "A kiosk with that name already exists.")
+	case err != nil:
+		return err
+	}
+	a.audit(c, "kiosk.create", "kiosk:"+strconv.FormatInt(k.ID, 10))
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"kiosk": k, "token": token})
+}
+
+func (a *API) setKioskActive(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return apiError(c, fiber.StatusBadRequest, "bad_request", "Invalid kiosk.")
+	}
+	var in struct {
+		Active bool `json:"active"`
+	}
+	if err := c.BodyParser(&in); err != nil {
+		return apiError(c, fiber.StatusBadRequest, "bad_request", "The form could not be read.")
+	}
+	if err := a.Kiosks.SetActive(c.Context(), id, in.Active); err != nil {
+		if errors.Is(err, kiosk.ErrNotFound) {
+			return apiError(c, fiber.StatusNotFound, "not_found", "That kiosk was not found.")
+		}
+		return err
+	}
+	a.audit(c, "kiosk.active."+strconv.FormatBool(in.Active), "kiosk:"+c.Params("id"))
+	return c.JSON(fiber.Map{"ok": true})
 }

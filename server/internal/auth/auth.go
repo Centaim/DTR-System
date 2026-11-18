@@ -44,7 +44,9 @@ func VerifyPIN(pin, encoded string) bool {
 }
 
 type Claims struct {
-	EmployeeID int64 `json:"eid"`
+	EmployeeID int64  `json:"eid"`
+	Kind       string `json:"k,omitempty"` // "" for a normal session, "kiosk" for a one-shot kiosk clock-in
+	KioskID    int64  `json:"kid,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -65,10 +67,36 @@ func ParseToken(secret []byte, token string) (int64, error) {
 	t, err := jwt.ParseWithClaims(token, &c, func(t *jwt.Token) (any, error) {
 		return secret, nil
 	}, jwt.WithValidMethods([]string{"HS256"}))
-	if err != nil || !t.Valid {
+	if err != nil || !t.Valid || c.Kind != "" {
 		return 0, errors.New("invalid token")
 	}
 	return c.EmployeeID, nil
+}
+
+const kioskTokenTTL = 2 * time.Minute
+
+// IssueKioskToken lets one verified employee take one photo at one kiosk.
+// It cannot be used as an ordinary session.
+func IssueKioskToken(secret []byte, employeeID, kioskID int64) (string, error) {
+	now := time.Now()
+	c := Claims{
+		EmployeeID: employeeID, Kind: "kiosk", KioskID: kioskID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(kioskTokenTTL)),
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
+}
+
+func ParseKioskToken(secret []byte, token string) (employeeID, kioskID int64, err error) {
+	var c Claims
+	t, perr := jwt.ParseWithClaims(token, &c, func(t *jwt.Token) (any, error) { return secret, nil },
+		jwt.WithValidMethods([]string{"HS256"}))
+	if perr != nil || !t.Valid || c.Kind != "kiosk" {
+		return 0, 0, errors.New("invalid kiosk token")
+	}
+	return c.EmployeeID, c.KioskID, nil
 }
 
 // ValidatePIN enforces the PIN policy: 6 to 12 digits, nothing trivially guessable.

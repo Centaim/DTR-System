@@ -85,3 +85,21 @@ func TestTempPINIsValid(t *testing.T) {
 		}
 	}
 }
+
+func TestKioskTokenIsNotASession(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	tok, err := IssueKioskToken(secret, 7, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e, k, err := ParseKioskToken(secret, tok); err != nil || e != 7 || k != 3 {
+		t.Fatalf("kiosk token: e=%d k=%d err=%v", e, k, err)
+	}
+	if _, err := ParseToken(secret, tok); err == nil {
+		t.Error("a kiosk token was accepted as a session")
+	}
+	session, _ := IssueToken(secret, 7)
+	if _, _, err := ParseKioskToken(secret, session); err == nil {
+		t.Error("a session token was accepted as a kiosk token")
+	}
+}

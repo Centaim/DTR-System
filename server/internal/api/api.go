@@ -2,7 +2,9 @@
 package api
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"dtr/server/internal/dtr"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
+	"dtr/server/internal/kiosk"
 	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
@@ -41,18 +44,21 @@ var allRoles = map[string]bool{
 }
 
 type API struct {
-	Pool       *pgxpool.Pool
-	Attendance *attendance.Service
-	Schedules  *schedule.Store
-	Requests   *requests.Store
-	PhotoAudit *photoaudit.Store
-	Holidays   *holidays.Store
-	Importer   *importer.Service
-	Reports    *reports.Service
-	Photos     storage.Store
-	JWTSecret  []byte
-	MaxPhotoMB int
-	Loc        *time.Location
+	Pool           *pgxpool.Pool
+	Attendance     *attendance.Service
+	Schedules      *schedule.Store
+	Requests       *requests.Store
+	PhotoAudit     *photoaudit.Store
+	Holidays       *holidays.Store
+	Importer       *importer.Service
+	Kiosks         *kiosk.Store
+	PINMaxAttempts int
+	PINLockMinutes int
+	Reports        *reports.Service
+	Photos         storage.Store
+	JWTSecret      []byte
+	MaxPhotoMB     int
+	Loc            *time.Location
 }
 
 type employee struct {
@@ -97,6 +103,9 @@ func (a *API) Routes(app *fiber.App) {
 
 	app.Post("/api/auth/login", rateLimit(), a.login)
 
+	// Kiosks authenticate with a device token, so these go before the session guard on /api.
+	a.kioskRoutes(app)
+
 	secured := app.Group("/api", a.requireAuth)
 	secured.Get("/me", a.me)
 	secured.Post("/me/pin", rateLimit(), a.changePIN)
@@ -115,6 +124,60 @@ func (a *API) Routes(app *fiber.App) {
 // dummyHash makes unknown employee numbers cost the same as wrong PINs.
 var dummyHash, _ = auth.HashPIN("not-a-real-pin")
 
+// credentialResult says why a PIN check failed, without saying which part was wrong.
+type credentialResult int
+
+const (
+	credOK credentialResult = iota
+	credInvalid
+	credLocked
+)
+
+// verifyCredentials checks an employee number and PIN. After too many wrong
+// PINs in a row the account locks for a while, which is what stops guessing at
+// a kiosk. A correct PIN while locked is still refused. Unknown numbers cost the
+// same as wrong PINs, so the response does not reveal which numbers exist.
+func (a *API) verifyCredentials(ctx context.Context, employeeNo, pin string) (employee, credentialResult, error) {
+	var e employee
+	var hash string
+	var active bool
+	var locked *time.Time
+	err := a.Pool.QueryRow(ctx,
+		`SELECT `+empCols+`, pin_hash, active, locked_until FROM employees WHERE employee_no = $1`,
+		strings.ToUpper(strings.TrimSpace(employeeNo))).
+		Scan(&e.ID, &e.EmployeeNo, &e.FullName, &e.Position, &e.Office, &e.Role, &e.MustChangePIN, &hash, &active, &locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		auth.VerifyPIN(pin, dummyHash)
+		return employee{}, credInvalid, nil
+	}
+	if err != nil {
+		return employee{}, credInvalid, err
+	}
+	if locked != nil && locked.After(time.Now()) {
+		return employee{}, credLocked, nil
+	}
+	if !auth.VerifyPIN(pin, hash) || !active {
+		_, err := a.Pool.Exec(ctx, `
+			UPDATE employees SET
+			  failed_attempts = CASE WHEN failed_attempts + 1 >= $2 THEN 0 ELSE failed_attempts + 1 END,
+			  locked_until    = CASE WHEN failed_attempts + 1 >= $2 THEN now() + ($3 * interval '1 minute') ELSE locked_until END
+			WHERE id = $1`, e.ID, a.PINMaxAttempts, a.PINLockMinutes)
+		return employee{}, credInvalid, err
+	}
+	if _, err := a.Pool.Exec(ctx, `UPDATE employees SET failed_attempts = 0, locked_until = NULL WHERE id = $1`, e.ID); err != nil {
+		return employee{}, credInvalid, err
+	}
+	return e, credOK, nil
+}
+
+func (a *API) credentialError(c *fiber.Ctx, r credentialResult) error {
+	if r == credLocked {
+		return apiError(c, fiber.StatusLocked, "locked",
+			fmt.Sprintf("Too many wrong PINs. Try again in %d minutes, or ask HR to reset your PIN.", a.PINLockMinutes))
+	}
+	return apiError(c, fiber.StatusUnauthorized, "invalid_credentials", "Employee number or PIN is incorrect.")
+}
+
 func (a *API) login(c *fiber.Ctx) error {
 	var body struct {
 		EmployeeNo string `json:"employee_no"`
@@ -123,25 +186,13 @@ func (a *API) login(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil || body.EmployeeNo == "" || body.PIN == "" {
 		return apiError(c, fiber.StatusBadRequest, "bad_request", "Enter your employee number and PIN.")
 	}
-
-	var hash string
-	var active bool
-	row := a.Pool.QueryRow(c.Context(),
-		`SELECT `+empCols+`, pin_hash, active FROM employees WHERE employee_no = $1`,
-		strings.ToUpper(strings.TrimSpace(body.EmployeeNo)))
-	var e employee
-	err := row.Scan(&e.ID, &e.EmployeeNo, &e.FullName, &e.Position, &e.Office, &e.Role, &e.MustChangePIN, &hash, &active)
-	if errors.Is(err, pgx.ErrNoRows) {
-		auth.VerifyPIN(body.PIN, dummyHash)
-		return apiError(c, fiber.StatusUnauthorized, "invalid_credentials", "Employee number or PIN is incorrect.")
-	}
+	e, res, err := a.verifyCredentials(c.Context(), body.EmployeeNo, body.PIN)
 	if err != nil {
 		return err
 	}
-	if !auth.VerifyPIN(body.PIN, hash) || !active {
-		return apiError(c, fiber.StatusUnauthorized, "invalid_credentials", "Employee number or PIN is incorrect.")
+	if res != credOK {
+		return a.credentialError(c, res)
 	}
-
 	token, err := auth.IssueToken(a.JWTSecret, e.ID)
 	if err != nil {
 		return err
@@ -386,3 +437,5 @@ func (a *API) dtr(c *fiber.Ctx) error {
 func fmtHM(m int) string { return time.Date(2000, 1, 1, m/60, m%60, 0, 0, time.UTC).Format("15:04") }
 
 func nowDate(loc *time.Location) string { return time.Now().In(loc).Format("2006-01-02") }
+
+func strconvID(id int64) string { return strconv.FormatInt(id, 10) }

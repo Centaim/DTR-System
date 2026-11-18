@@ -17,6 +17,7 @@ import (
 	"dtr/server/internal/db"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
+	"dtr/server/internal/kiosk"
 	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
@@ -92,18 +93,21 @@ func main() {
 	holStore := holidays.NewStore(pool)
 
 	(&api.API{
-		Pool:       pool,
-		Attendance: attSvc,
-		Schedules:  schedStore,
-		Requests:   reqStore,
-		PhotoAudit: photoaudit.NewStore(pool),
-		Holidays:   holStore,
-		Importer:   importer.NewService(pool),
-		Reports:    reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, cfg.HabitualLateDays),
-		Photos:     store,
-		JWTSecret:  cfg.JWTSecret,
-		MaxPhotoMB: cfg.MaxPhotoMB,
-		Loc:        loc,
+		Pool:           pool,
+		Attendance:     attSvc,
+		Schedules:      schedStore,
+		Requests:       reqStore,
+		PhotoAudit:     photoaudit.NewStore(pool),
+		Holidays:       holStore,
+		Importer:       importer.NewService(pool),
+		Kiosks:         kiosk.NewStore(pool),
+		PINMaxAttempts: cfg.PINMaxAttempts,
+		PINLockMinutes: cfg.PINLockMinutes,
+		Reports:        reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, cfg.HabitualLateDays),
+		Photos:         store,
+		JWTSecret:      cfg.JWTSecret,
+		MaxPhotoMB:     cfg.MaxPhotoMB,
+		Loc:            loc,
 	}).Routes(app)
 
 	go func() {

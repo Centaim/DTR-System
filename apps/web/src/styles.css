@@ -1580,3 +1580,157 @@ table.data td.shrink {
 table.data th.wrap {
   overflow-wrap: anywhere;
 }
+
+/* ---------- Kiosk ---------- */
+
+.kiosk {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: max(16px, env(safe-area-inset-top)) 24px max(16px, env(safe-area-inset-bottom));
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.kiosk-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kiosk-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .kiosk-body {
+    grid-template-columns: 1fr minmax(380px, 460px);
+    align-items: center;
+    gap: 40px;
+  }
+}
+
+.kiosk-clock .date {
+  font-size: 1.25rem;
+}
+
+.kiosk-clock .time {
+  font-size: clamp(4rem, 16vw, 9rem);
+}
+
+.kiosk-card {
+  padding: 24px;
+  width: 100%;
+  max-width: 520px;
+  justify-self: center;
+}
+
+.kiosk-card .title {
+  font-size: 1.75rem;
+}
+
+.kiosk-go {
+  width: 100%;
+  min-height: 64px;
+  font-size: 1.25rem;
+}
+
+.keypad-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  min-height: 28px;
+}
+
+.pin-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--seam-strong);
+}
+
+.pin-dot[data-filled="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.key {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  background: var(--ground);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.key:active:not(:disabled) {
+  background: var(--seam);
+}
+
+.key:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.key.quiet-key {
+  font-size: 1rem;
+  background: transparent;
+}
+
+.done {
+  align-items: center;
+  text-align: center;
+}
+
+.done-mark {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+  animation: register 420ms var(--ease-out);
+}
+
+@media (prefers-color-scheme: dark) {
+  .done-mark {
+    color: #0b1420;
+  }
+}
+
+.token-box {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  background: var(--ground);
+  user-select: all;
+}

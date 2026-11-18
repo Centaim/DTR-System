@@ -7,13 +7,14 @@ import { AuditTab } from "./admin/AuditTab";
 import { DashboardTab } from "./admin/DashboardTab";
 import { ReportsTab } from "./admin/ReportsTab";
 import { ActivityTab } from "./admin/ActivityTab";
+import { KiosksTab } from "./admin/KiosksTab";
 
 export function Admin({ employee }: { employee: Employee }) {
   const { t } = useT();
   const manager = employee.role === "hr_admin" || employee.role === "super_admin";
-  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports" | "activity";
+  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports" | "activity" | "kiosks";
   const tabs: Tab[] = manager
-    ? ["dashboard", "employees", "schedules", "audit", "reports", "activity"]
+    ? ["dashboard", "employees", "schedules", "kiosks", "audit", "reports", "activity"]
     : ["dashboard", "audit", "reports", "activity"];
   const [tab, setTab] = useState<Tab>("dashboard");
   const labels: Record<Tab, string> = {
@@ -23,6 +24,7 @@ export function Admin({ employee }: { employee: Employee }) {
     audit: t.tabAudit,
     reports: t.tabReports,
     activity: t.tabActivity,
+    kiosks: t.tabKiosks,
   };
   const label = (k: Tab) => labels[k];
 
@@ -59,6 +61,8 @@ export function Admin({ employee }: { employee: Employee }) {
             <ReportsTab />
           ) : tab === "activity" ? (
             <ActivityTab />
+          ) : tab === "kiosks" ? (
+            <KiosksTab />
           ) : (
             <AuditTab canReview={manager} />
           )}

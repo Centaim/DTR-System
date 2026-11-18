@@ -4,6 +4,7 @@ import { requestsEn } from "./i18n-requests";
 import { auditEn } from "./i18n-audit";
 import { reportsEn } from "./i18n-reports";
 import { peopleEn } from "./i18n-people";
+import { kioskEn, kioskFil } from "./i18n-kiosk";
 
 export type Lang = "en" | "fil";
 
@@ -88,6 +89,7 @@ const dict = {
     ...auditEn,
     ...reportsEn,
     ...peopleEn,
+    ...kioskEn,
   },
   fil: {
     appName: "DTR",
@@ -163,6 +165,7 @@ const dict = {
     navRequests: "Mga request",
     navApprovals: "Aprubahan",
     navAdmin: "HR admin",
+    ...kioskFil,
   },
 } as const;
 

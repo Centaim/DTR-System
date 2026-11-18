@@ -28,9 +28,13 @@ function meanLuma(canvas: HTMLCanvasElement): number {
 export function CameraSheet({
   onCancel,
   onConfirm,
+  title,
+  help,
 }: {
   onCancel: () => void;
   onConfirm: (photo: Blob) => void;
+  title?: string;
+  help?: string;
 }) {
   const { t } = useT();
   const [phase, setPhase] = useState<Phase>({ name: "starting" });
@@ -147,8 +151,8 @@ export function CameraSheet({
       ref={dialog}
     >
       <div className="sheet-head">
-        <h2 id="cam-title">{phase.name === "review" ? t.reviewTitle : t.camTitle}</h2>
-        <p>{t.camHelp}</p>
+        <h2 id="cam-title">{phase.name === "review" ? t.reviewTitle : (title ?? t.camTitle)}</h2>
+        <p>{help ?? t.camHelp}</p>
       </div>
 
       <div className="viewfinder">
