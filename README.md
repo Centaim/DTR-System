@@ -34,6 +34,10 @@ Accounts HR creates get a temporary PIN and must choose their own at first sign-
 
 Camera access needs `localhost` or HTTPS. Testing from a phone on the local network needs an HTTPS tunnel or a local certificate.
 
+## Production install
+
+One command installs the whole system with HTTPS and daily encrypted backups. See [`deploy/README.md`](deploy/README.md).
+
 ## Office kiosk
 
 For staff without a suitable phone. HR registers a kiosk under **HR admin > Kiosks** and gets a one-time token. On the kiosk device (a tablet is ideal), open `/kiosk`, paste the token once, and leave it on that page. An employee types their number or scans their ID card's QR code, enters their PIN on the on-screen pad, and takes a photo. The kiosk goes back to the start after 45 seconds of inactivity, and shows the confirmation for 7 seconds.
@@ -74,6 +78,7 @@ The camera permission is declared in the manifest. Whether the Android WebView g
 | `REQUEST_WINDOW_DAYS` | `30` | How far back an employee may date a request |
 | `PIN_MAX_ATTEMPTS` | `5` | Wrong PINs in a row before an account locks (web and kiosk) |
 | `PIN_LOCK_MINUTES` | `10` | How long a locked account stays locked. HR resetting the PIN unlocks it |
+| `TRUSTED_PROXIES` | none | Proxy addresses allowed to report the real client address. Set by the production install |
 | `HABITUAL_LATE_DAYS` | `10` | Late days in a month that flag habitual tardiness. Confirm the rule with HR |
 
 ## Checks

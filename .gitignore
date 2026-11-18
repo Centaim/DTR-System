@@ -19,3 +19,5 @@ apps/mobile/src-tauri/gen/android/app/tauri.build.gradle.kts
 apps/mobile/src-tauri/gen/android/app/tauri.properties
 apps/mobile/src-tauri/gen/android/app/src/main/assets/
 apps/mobile/src-tauri/gen/schemas/
+deploy/.env
+deploy/backups/

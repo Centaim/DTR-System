@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -18,6 +19,7 @@ type Config struct {
 	HabitualLateDays int // late days in a month that flag habitual tardiness
 	PINMaxAttempts   int // wrong PINs in a row before the account locks
 	PINLockMinutes   int
+	TrustedProxies   []string // proxies allowed to report the real client address
 	CORSOrigins      string
 	SeedDemo         bool
 }
@@ -65,6 +67,11 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("PIN_LOCK_MINUTES must be a positive integer")
 	}
 	c.PINMaxAttempts, c.PINLockMinutes = maxTries, lock
+	for _, p := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			c.TrustedProxies = append(c.TrustedProxies, p)
+		}
+	}
 	return c, nil
 }
 

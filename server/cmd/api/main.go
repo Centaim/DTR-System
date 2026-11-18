@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata" // Asia/Manila must resolve on minimal containers
@@ -49,6 +52,12 @@ func main() {
 	if err := db.Migrate(ctx, pool, migrations.FS); err != nil {
 		log.Fatal(err)
 	}
+	if len(os.Args) > 1 && os.Args[1] == "create-admin" {
+		if err := createAdmin(ctx, pool, os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if cfg.SeedDemo {
 		if err := seedDemo(ctx, pool); err != nil {
 			log.Fatal(err)
@@ -66,9 +75,14 @@ func main() {
 	}
 
 	app := fiber.New(fiber.Config{
-		BodyLimit:    (cfg.MaxPhotoMB + 1) << 20,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		// Behind a proxy, rate limits must count real clients, not the proxy.
+		// The forwarded address is believed only from the listed proxies.
+		EnableTrustedProxyCheck: len(cfg.TrustedProxies) > 0,
+		TrustedProxies:          cfg.TrustedProxies,
+		ProxyHeader:             proxyHeader(cfg.TrustedProxies),
+		BodyLimit:               (cfg.MaxPhotoMB + 1) << 20,
+		ReadTimeout:             15 * time.Second,
+		WriteTimeout:            15 * time.Second,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			var fe *fiber.Error
 			if errors.As(err, &fe) {
@@ -118,6 +132,48 @@ func main() {
 	if err := app.Listen(cfg.Addr); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func proxyHeader(trusted []string) string {
+	if len(trusted) == 0 {
+		return ""
+	}
+	return fiber.HeaderXForwardedFor
+}
+
+// createAdmin makes the first super admin on a fresh install. The temporary PIN
+// is printed once and must be changed at first sign-in.
+func createAdmin(ctx context.Context, pool *pgxpool.Pool, args []string) error {
+	fs := flag.NewFlagSet("create-admin", flag.ExitOnError)
+	no := fs.String("no", "", "employee number")
+	name := fs.String("name", "", "full name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	employeeNo, fullName := strings.ToUpper(strings.TrimSpace(*no)), strings.TrimSpace(*name)
+	if employeeNo == "" || fullName == "" {
+		return errors.New(`usage: create-admin -no ADMIN-1 -name "Full Name"`)
+	}
+	temp, err := auth.TempPIN()
+	if err != nil {
+		return err
+	}
+	hash, err := auth.HashPIN(temp)
+	if err != nil {
+		return err
+	}
+	tag, err := pool.Exec(ctx, `
+		INSERT INTO employees (employee_no, full_name, role, pin_hash, must_change_pin)
+		VALUES ($1, $2, 'super_admin', $3, TRUE) ON CONFLICT (employee_no) DO NOTHING`,
+		employeeNo, fullName, hash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("employee number %s already exists", employeeNo)
+	}
+	fmt.Printf("Super admin %s created.\nTemporary PIN (shown once): %s\n", employeeNo, temp)
+	return nil
 }
 
 // seedDemo inserts synthetic accounts for local demos only. Fake data, never real.

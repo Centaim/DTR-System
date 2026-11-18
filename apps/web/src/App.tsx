@@ -67,7 +67,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const role = employee?.role;
+  const role = employee?.must_change_pin ? undefined : employee?.role;
   useEffect(() => {
     if (role === "supervisor" || role === "hr_admin" || role === "super_admin") {
       api.approvals.pending().then((l) => setApprovalCount(l.length)).catch(() => undefined);
