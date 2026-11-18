@@ -43,6 +43,7 @@ func (a *API) createRequest(c *fiber.Ctx) error {
 		return requestError(c, err)
 	}
 	a.audit(c, "request.create", "request:"+strconv.FormatInt(r.ID, 10))
+	a.Engage.NotifyApprovers(c.Context(), actorID(c), "request_filed", r.WorkDate)
 	return c.Status(fiber.StatusCreated).JSON(r)
 }
 
@@ -91,5 +92,8 @@ func (a *API) decideRequest(c *fiber.Ctx) error {
 		return requestError(c, err)
 	}
 	a.audit(c, "request."+r.Status, "request:"+c.Params("id"))
+	if owner, err := a.Requests.Owner(c.Context(), id); err == nil {
+		a.Engage.Notify(c.Context(), owner, "request_"+r.Status, r.WorkDate, "")
+	}
 	return c.JSON(r)
 }

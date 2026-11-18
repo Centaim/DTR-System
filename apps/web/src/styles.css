@@ -1890,3 +1890,87 @@ table.data th.wrap {
   border-radius: var(--radius);
   cursor: pointer;
 }
+
+/* ---------- More, alerts ---------- */
+
+.menu {
+  padding: 4px 16px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  border: 0;
+  border-top: 1px solid var(--seam);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu li:first-child .menu-item {
+  border-top: 0;
+}
+
+.menu-item > span:first-of-type {
+  flex: 1;
+}
+
+.pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tag.fit {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+.inline-add {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inline-add .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.field input[type="file"] {
+  font: inherit;
+  min-height: 48px;
+}
+
+.field input[type="email"],
+.field input[type="datetime-local"] {
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  background: var(--ground);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+/* Form controls never force their column wider than the screen. */
+.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field {
+  min-width: 0;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+}

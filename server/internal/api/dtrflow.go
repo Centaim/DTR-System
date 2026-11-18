@@ -179,11 +179,14 @@ func (a *API) certifyDTR(c *fiber.Ctx) error {
 		return err
 	}
 	a.audit(c, "dtr.certify", "dtr:"+strconv.FormatInt(s.ID, 10))
+	a.Engage.NotifyApprovers(c.Context(), id, "dtr_submitted", v.Employee.FullName+" "+monthStart(y, m)[:7])
 	return c.Status(fiber.StatusCreated).JSON(s)
 }
 
 // reviewable is the approval rule: own reports, or everyone for HR. Never yourself.
-const reviewable = `d.employee_id <> $1 AND (e.supervisor_id = $1 OR $2 IN ('hr_admin','super_admin'))`
+const reviewable = `d.employee_id <> $1 AND (e.supervisor_id = $1 OR $2 IN ('hr_admin','super_admin') OR e.supervisor_id IN (
+	SELECT x.from_id FROM approval_delegations x WHERE x.to_id = $1
+	   AND (now() AT TIME ZONE 'Asia/Manila')::date BETWEEN x.from_date AND x.to_date))`
 
 func (a *API) dtrPending(c *fiber.Ctx) error {
 	rows, err := a.Pool.Query(c.Context(), `
@@ -241,17 +244,21 @@ func (a *API) dtrDecide(status string) fiber.Handler {
 		if len(body.Note) > 300 {
 			return apiError(c, fiber.StatusUnprocessableEntity, "invalid", "Keep the note under 300 characters.")
 		}
-		tag, err := a.Pool.Exec(c.Context(), `
+		var owner int64
+		var month string
+		err := a.Pool.QueryRow(c.Context(), `
 			UPDATE dtr_submissions d SET status=$4::dtr_status, decided_by=$1, decided_at=now(), note=$5
 			  FROM employees e
-			 WHERE d.id=$3 AND d.status='submitted' AND e.id=d.employee_id AND `+reviewable,
-			actorID(c), actorRole(c), c.Params("id"), status, body.Note)
+			 WHERE d.id=$3 AND d.status='submitted' AND e.id=d.employee_id AND `+reviewable+`
+			 RETURNING d.employee_id, to_char(d.month,'YYYY-MM')`,
+			actorID(c), actorRole(c), c.Params("id"), status, body.Note).Scan(&owner, &month)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apiError(c, fiber.StatusConflict, "conflict", "This DTR is no longer waiting for you.")
+		}
 		if err != nil {
 			return apiError(c, fiber.StatusBadRequest, "bad_request", "Invalid DTR.")
 		}
-		if tag.RowsAffected() == 0 {
-			return apiError(c, fiber.StatusConflict, "conflict", "This DTR is no longer waiting for you.")
-		}
+		a.Engage.Notify(c.Context(), owner, "dtr_"+status, month, "")
 		a.audit(c, "dtr."+status, "dtr:"+c.Params("id"))
 		return c.JSON(fiber.Map{"ok": true})
 	}

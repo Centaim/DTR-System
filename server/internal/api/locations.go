@@ -119,7 +119,11 @@ func (a *API) approveDevice(ctx context.Context, id string, actor int64) (bool, 
 	if _, err := tx.Exec(ctx, `UPDATE device_bindings SET status='approved', decided_by=$2, decided_at=now() WHERE id=$1`, id, actor); err != nil {
 		return false, err
 	}
-	return true, tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	a.Engage.Notify(ctx, emp, "device_approved", "", "")
+	return true, nil
 }
 
 func (a *API) decideDevice(approve bool) fiber.Handler {

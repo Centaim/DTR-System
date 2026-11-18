@@ -173,6 +173,7 @@ function EmployeeForm({
     employment: emp?.employment ?? "plantilla",
     supervisor_id: emp?.supervisor_id ?? 0,
     clock_channels: emp?.clock_channels ?? 3,
+    email: emp?.email ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -198,6 +199,7 @@ function EmployeeForm({
         employment: f.employment,
         supervisor_id: f.supervisor_id,
         clock_channels: f.clock_channels,
+        email: f.email,
       };
       if (!self) body.role = f.role;
       if (emp) {
@@ -296,6 +298,12 @@ function EmployeeForm({
           </select>
         </label>
 
+        {emp && (
+          <label className="field">
+            <span>{t.empEmail}</span>
+            <input type="email" value={f.email} readOnly={locked} maxLength={120} onChange={(e) => setF({ ...f, email: e.target.value })} />
+          </label>
+        )}
         {emp && (
           <label className="field">
             <span>{t.channelsLabel}</span>

@@ -12,21 +12,23 @@ import (
 )
 
 const (
-	DTREarlySubmit     = "dtr_allow_early_submit"
-	GeofenceMode       = "geofence_mode"
-	DeviceBindingMode  = "device_binding_mode"
-	PhotoRetentionDays = "photo_retention_days"
-	PrivacyVersion     = "privacy_notice_version"
-	MinGapSeconds      = "min_gap_seconds"
-	RequestWindowDays  = "request_window_days"
-	HabitualLateDays   = "habitual_late_days"
-	PINMaxAttempts     = "pin_max_attempts"
-	PINLockMinutes     = "pin_lock_minutes"
-	FlagDarkLuma       = "flag_dark_luma"
-	FlagSimilarBits    = "flag_similar_bits"
-	FlagSkewMinutes    = "flag_skew_minutes"
-	FlagLateSyncMins   = "flag_late_sync_minutes"
-	FlagSharedDevMins  = "flag_shared_device_minutes"
+	DTREarlySubmit       = "dtr_allow_early_submit"
+	ApprovalEscalateDays = "approval_escalate_days"
+	DTRDeadlineDay       = "dtr_deadline_day"
+	GeofenceMode         = "geofence_mode"
+	DeviceBindingMode    = "device_binding_mode"
+	PhotoRetentionDays   = "photo_retention_days"
+	PrivacyVersion       = "privacy_notice_version"
+	MinGapSeconds        = "min_gap_seconds"
+	RequestWindowDays    = "request_window_days"
+	HabitualLateDays     = "habitual_late_days"
+	PINMaxAttempts       = "pin_max_attempts"
+	PINLockMinutes       = "pin_lock_minutes"
+	FlagDarkLuma         = "flag_dark_luma"
+	FlagSimilarBits      = "flag_similar_bits"
+	FlagSkewMinutes      = "flag_skew_minutes"
+	FlagLateSyncMins     = "flag_late_sync_minutes"
+	FlagSharedDevMins    = "flag_shared_device_minutes"
 )
 
 type Definition struct {
@@ -44,6 +46,8 @@ func Definitions(defaults map[string]int) []Definition {
 		{RequestWindowDays, "attendance", 30, 1, 365},
 		{HabitualLateDays, "attendance", 10, 1, 31},
 		{DTREarlySubmit, "attendance", 0, 0, 1},
+		{DTRDeadlineDay, "attendance", 5, 1, 28},
+		{ApprovalEscalateDays, "attendance", 3, 1, 30},
 		{PINMaxAttempts, "security", 5, 3, 20},
 		{PINLockMinutes, "security", 10, 1, 1440},
 		{PhotoRetentionDays, "privacy", 0, 0, 3650},

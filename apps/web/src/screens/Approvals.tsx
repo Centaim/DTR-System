@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
-import { ApiError, NetworkError, api, type DtrPendingRow, type DtrResponse, type RequestItem } from "../lib/api";
+import { ApiError, NetworkError, api, type Delegation, type DtrPendingRow, type DtrResponse, type RequestItem } from "../lib/api";
 import { useT, type Strings } from "../lib/i18n";
 import { describe, kindLabel } from "./Requests";
 import { monthLabel } from "../lib/month";
@@ -10,6 +10,50 @@ function message(e: unknown, t: Strings): string {
   if (e instanceof NetworkError) return t.errNetwork;
   if (e instanceof ApiError && e.message) return e.message;
   return t.errGeneric;
+}
+
+function DelegationPanel() {
+  const { t } = useT();
+  const [list, setList] = useState<Delegation[]>([]);
+  const [f, setF] = useState({ employee_no: "", from_date: "", to_date: "" });
+  const [error, setError] = useState("");
+  const load = useCallback(() => {
+    api.delegations.list().then(setList).catch(() => undefined);
+  }, []);
+  useEffect(load, [load]);
+  const add = async (ev: FormEvent) => {
+    ev.preventDefault();
+    setError("");
+    try {
+      await api.delegations.create(f);
+      setF({ employee_no: "", from_date: "", to_date: "" });
+      load();
+    } catch (e) {
+      setError(message(e, t));
+    }
+  };
+  return (
+    <form className="panel form" onSubmit={add} noValidate>
+      <h2 className="panel-h">{t.delTitle}</h2>
+      <p className="muted small">{t.delNote}</p>
+      {list.length === 0 && <p className="muted">{t.delEmpty}</p>}
+      <ul className="rows flat">
+        {list.map((d) => (
+          <li key={d.id} className="row">
+            <span className="row-main"><span className="rail-slot">{t.delItem(d.to_name, d.from_date, d.to_date)}</span></span>
+            <button type="button" className="link-btn" onClick={() => api.delegations.remove(d.id).finally(load)}>{t.delRemove}</button>
+          </li>
+        ))}
+      </ul>
+      <label className="field"><span>{t.delTo}</span><input value={f.employee_no} onChange={(e) => setF({ ...f, employee_no: e.target.value })} /></label>
+      <div className="two">
+        <label className="field"><span>{t.delFrom}</span><input type="date" value={f.from_date} onChange={(e) => setF({ ...f, from_date: e.target.value })} /></label>
+        <label className="field"><span>{t.delUntil}</span><input type="date" value={f.to_date} min={f.from_date} onChange={(e) => setF({ ...f, to_date: e.target.value })} /></label>
+      </div>
+      <div aria-live="polite">{error && <p className="msg bad">{error}</p>}</div>
+      <button className="btn quiet" type="submit" disabled={!f.employee_no.trim() || !f.from_date || !f.to_date}>{t.delSave}</button>
+    </form>
+  );
 }
 
 export function Approvals({ onCount }: { onCount: (n: number) => void }) {
@@ -148,6 +192,14 @@ export function Approvals({ onCount }: { onCount: (n: number) => void }) {
                   <span>{kindLabel(t, r.kind)}</span>
                   <span className="rail-state">{describe(t, lang, r)}</span>
                   <span className="rail-state">{r.reason}</span>
+                  {r.has_attachment && (
+                    <button
+                      className="link-btn start"
+                      onClick={() => api.attachment.open(r.id).then((b) => window.open(URL.createObjectURL(b), "_blank")).catch(() => setError(t.errGeneric))}
+                    >
+                      {t.reqViewFile}
+                    </button>
+                  )}
 
                   {rejecting === r.id ? (
                     <span className="reject-box">
@@ -179,6 +231,7 @@ export function Approvals({ onCount }: { onCount: (n: number) => void }) {
             ))}
           </ul>
         </section>
+        <DelegationPanel />
       </main>
     </div>
   );

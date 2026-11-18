@@ -19,6 +19,7 @@ import (
 	"dtr/server/internal/config"
 	"dtr/server/internal/db"
 	"dtr/server/internal/dtrcalc"
+	"dtr/server/internal/engage"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
 	"dtr/server/internal/kiosk"
@@ -129,13 +130,15 @@ func main() {
 	holStore := holidays.NewStore(pool)
 	calc := dtrcalc.New(attSvc, reqStore, schedStore, holStore, loc)
 
-	(&api.API{
+	engageStore := engage.NewStore(pool, engage.Mailer{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser, Pass: cfg.SMTPPass, From: cfg.SMTPFrom}, loc)
+	server := &api.API{
 		Pool:       pool,
 		Attendance: attSvc,
 		Schedules:  schedStore,
 		Requests:   reqStore,
 		PhotoAudit: photoaudit.NewStore(pool),
 		Calc:       calc,
+		Engage:     engageStore,
 		Holidays:   holStore,
 		Importer:   importer.NewService(pool),
 		Kiosks:     kiosk.NewStore(pool),
@@ -145,7 +148,9 @@ func main() {
 		JWTSecret:  cfg.JWTSecret,
 		MaxPhotoMB: cfg.MaxPhotoMB,
 		Loc:        loc,
-	}).Routes(app)
+	}
+	server.Routes(app)
+	go server.RunReminders(ctx)
 
 	go func() {
 		<-ctx.Done()

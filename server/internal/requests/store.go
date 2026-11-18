@@ -56,6 +56,8 @@ type Request struct {
 	DecisionNote string     `json:"decision_note"`
 	DecidedAt    *time.Time `json:"decided_at"`
 	CreatedAt    time.Time  `json:"created_at"`
+	HasFile      bool       `json:"has_attachment"`
+	Source       string     `json:"source"`
 	Employee     string     `json:"employee,omitempty"`
 	EmployeeNo   string     `json:"employee_no,omitempty"`
 }
@@ -81,12 +83,12 @@ func NewStore(pool *pgxpool.Pool, s *settings.Store, loc *time.Location) *Store 
 
 const cols = `r.id, r.kind::text, r.work_date::text, r.date_to::text, r.slot::text,
 	to_char(r.requested_time,'HH24:MI'), r.reason, r.status::text, r.decision_note,
-	r.decided_at, r.created_at`
+	r.decided_at, r.created_at, r.attachment_key <> '', r.source`
 
 func scan(row pgx.Row, withEmployee bool) (Request, error) {
 	var r Request
 	dest := []any{&r.ID, &r.Kind, &r.WorkDate, &r.DateTo, &r.Slot, &r.Time, &r.Reason,
-		&r.Status, &r.DecisionNote, &r.DecidedAt, &r.CreatedAt}
+		&r.Status, &r.DecisionNote, &r.DecidedAt, &r.CreatedAt, &r.HasFile, &r.Source}
 	if withEmployee {
 		dest = append(dest, &r.Employee, &r.EmployeeNo)
 	}
@@ -162,6 +164,13 @@ func (s *Store) Create(ctx context.Context, employeeID int64, in Input) (Request
 	return r, err
 }
 
+// Owner returns who filed a request.
+func (s *Store) Owner(ctx context.Context, id int64) (int64, error) {
+	var emp int64
+	err := s.pool.QueryRow(ctx, `SELECT employee_id FROM requests WHERE id=$1`, id).Scan(&emp)
+	return emp, err
+}
+
 func (s *Store) Mine(ctx context.Context, employeeID int64) ([]Request, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+cols+` FROM requests r
 		WHERE r.employee_id = $1 ORDER BY r.created_at DESC LIMIT 100`, employeeID)
@@ -194,7 +203,9 @@ func (s *Store) Cancel(ctx context.Context, employeeID, id int64) error {
 
 // visible is the approval rule: a supervisor sees their own reports' requests,
 // HR and super admins see everyone's, and nobody ever decides their own.
-const visible = `r.employee_id <> $1 AND (e.supervisor_id = $1 OR $2 IN ('hr_admin','super_admin'))`
+const visible = `r.employee_id <> $1 AND (e.supervisor_id = $1 OR $2 IN ('hr_admin','super_admin') OR e.supervisor_id IN (
+	SELECT d.from_id FROM approval_delegations d WHERE d.to_id = $1
+	   AND (now() AT TIME ZONE 'Asia/Manila')::date BETWEEN d.from_date AND d.to_date))`
 
 func (s *Store) Pending(ctx context.Context, actorID int64, role string) ([]Request, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+cols+`, e.full_name, e.employee_no

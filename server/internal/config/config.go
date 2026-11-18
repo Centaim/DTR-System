@@ -10,20 +10,21 @@ import (
 )
 
 type Config struct {
-	Addr             string
-	DatabaseURL      string
-	JWTSecret        []byte
-	PhotoDir         string
-	MaxPhotoMB       int
-	MinGapSecs       int // blocks duplicate taps; a setting, not a constant
-	RequestDays      int // how far back a request may be dated
-	HabitualLateDays int // late days in a month that flag habitual tardiness
-	PINMaxAttempts   int // wrong PINs in a row before the account locks
-	PINLockMinutes   int
-	PhotoKey         []byte   // 32 bytes; photos are encrypted at rest when set
-	TrustedProxies   []string // proxies allowed to report the real client address
-	CORSOrigins      string
-	SeedDemo         bool
+	Addr                                             string
+	DatabaseURL                                      string
+	JWTSecret                                        []byte
+	PhotoDir                                         string
+	MaxPhotoMB                                       int
+	MinGapSecs                                       int // blocks duplicate taps; a setting, not a constant
+	RequestDays                                      int // how far back a request may be dated
+	HabitualLateDays                                 int // late days in a month that flag habitual tardiness
+	PINMaxAttempts                                   int // wrong PINs in a row before the account locks
+	PINLockMinutes                                   int
+	PhotoKey                                         []byte // 32 bytes; photos are encrypted at rest when set
+	SMTPHost, SMTPPort, SMTPUser, SMTPPass, SMTPFrom string
+	TrustedProxies                                   []string // proxies allowed to report the real client address
+	CORSOrigins                                      string
+	SeedDemo                                         bool
 }
 
 func Load() (Config, error) {
@@ -69,6 +70,8 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("PIN_LOCK_MINUTES must be a positive integer")
 	}
 	c.PINMaxAttempts, c.PINLockMinutes = maxTries, lock
+	c.SMTPHost, c.SMTPPort, c.SMTPUser = os.Getenv("SMTP_HOST"), env("SMTP_PORT", "587"), os.Getenv("SMTP_USER")
+	c.SMTPPass, c.SMTPFrom = os.Getenv("SMTP_PASS"), os.Getenv("SMTP_FROM")
 	if v := os.Getenv("PHOTO_KEY"); v != "" {
 		key, err := hex.DecodeString(v)
 		if err != nil || len(key) != 32 {

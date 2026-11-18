@@ -23,6 +23,7 @@ export interface AdminEmployee {
   supervisor_id: number | null;
   schedule: string | null;
   clock_channels: number;
+  email: string;
 }
 
 export interface EmployeeInput {
@@ -35,6 +36,7 @@ export interface EmployeeInput {
   active?: boolean;
   supervisor_id?: number;
   clock_channels?: number;
+  email?: string;
 }
 
 export interface Schedule {
@@ -73,6 +75,8 @@ export interface RequestItem {
   status: string;
   decision_note: string;
   created_at: string;
+  has_attachment: boolean;
+  source: string;
   employee?: string;
   employee_no?: string;
 }
@@ -214,6 +218,63 @@ export interface DeviceRequest {
   name: string;
   device_id: string;
   requested_at: string;
+}
+
+export interface NotificationItem {
+  id: number;
+  kind: string;
+  detail: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Announcement {
+  id: number;
+  title: string;
+  body: string;
+  office: string;
+  created_at: string;
+  acked: boolean;
+  ack_count: number;
+  audience: number;
+}
+
+export interface Accomplishment {
+  id: number;
+  period_from: string;
+  period_to: string;
+  body: string;
+  status: string;
+  note: string;
+  employee: string;
+}
+
+export interface EventItem {
+  id: number;
+  title: string;
+  place: string;
+  office: string;
+  starts_at: string;
+  ends_at: string;
+  required: boolean;
+  attended: boolean;
+  count: number;
+  audience: number;
+}
+
+export interface Attendee {
+  employee_no: string;
+  name: string;
+  office: string;
+  method: string | null;
+  at: string | null;
+}
+
+export interface Delegation {
+  id: number;
+  to_name: string;
+  from_date: string;
+  to_date: string;
 }
 
 export interface LogEntry {
@@ -421,6 +482,53 @@ export const api = {
     bulk: (month: string, office: string) =>
       request<DtrResponse[]>(`/api/dtr-admin/bulk?month=${month}&office=${encodeURIComponent(office)}`),
     reopen: (id: number, note: string) => request<{ ok: boolean }>(`/api/dtr-admin/${id}/reopen`, json("POST", { note })),
+  },
+  notifications: {
+    list: () => request<{ items: NotificationItem[]; unread: number }>("/api/notifications"),
+    markRead: () => request<{ ok: boolean }>("/api/notifications/read", { method: "POST" }),
+  },
+  announcements: {
+    list: () => request<Announcement[]>("/api/announcements"),
+    create: (body: { title: string; body: string; office: string }) =>
+      request<{ ok: boolean }>("/api/announcements", json("POST", body)),
+    ack: (id: number) => request<{ ok: boolean }>(`/api/announcements/${id}/ack`, { method: "POST" }),
+  },
+  accomplishments: {
+    mine: () => request<Accomplishment[]>("/api/accomplishments"),
+    pending: () => request<Accomplishment[]>("/api/accomplishments/pending"),
+    create: (body: { period_from: string; period_to: string; body: string }) =>
+      request<{ ok: boolean }>("/api/accomplishments", json("POST", body)),
+    review: (id: number, accept: boolean, note: string) =>
+      request<{ ok: boolean }>(`/api/accomplishments/${id}/review`, json("POST", { accept, note })),
+  },
+  events: {
+    list: () => request<EventItem[]>("/api/events"),
+    create: (body: { title: string; place: string; office: string; starts_at: string; ends_at: string; required: boolean }) =>
+      request<{ ok: boolean }>("/api/events", json("POST", body)),
+    checkIn: (id: number, photo: Blob) => {
+      const form = new FormData();
+      form.set("photo", photo, "photo.jpg");
+      return request<{ ok: boolean }>(`/api/events/${id}/check-in`, { method: "POST", body: form });
+    },
+    attendance: (id: number) => request<Attendee[]>(`/api/events/${id}/attendance`),
+    mark: (id: number, employee_no: string) =>
+      request<{ ok: boolean }>(`/api/events/${id}/mark`, json("POST", { employee_no })),
+  },
+  delegations: {
+    list: () => request<Delegation[]>("/api/delegations"),
+    create: (body: { employee_no: string; from_date: string; to_date: string }) =>
+      request<{ ok: boolean }>("/api/delegations", json("POST", body)),
+    remove: (id: number) => request<{ ok: boolean }>(`/api/delegations/${id}`, { method: "DELETE" }),
+  },
+  logbook: (body: { employee_no: string; day: string; reason: string; entries: { slot: string; time: string }[] }) =>
+    request<{ saved: number }>("/api/logbook", json("POST", body)),
+  attachment: {
+    upload: (id: number, file: File) => {
+      const form = new FormData();
+      form.set("file", file);
+      return request<{ ok: boolean }>(`/api/requests/${id}/attachment`, { method: "POST", body: form });
+    },
+    open: (id: number) => requestBlob(`/api/requests/${id}/attachment`),
   },
   acceptPrivacy: () => request<{ ok: boolean }>("/api/me/privacy", { method: "POST" }),
 

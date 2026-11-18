@@ -14,6 +14,7 @@ import (
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
 	"dtr/server/internal/dtrcalc"
+	"dtr/server/internal/engage"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
 	"dtr/server/internal/kiosk"
@@ -51,6 +52,7 @@ type API struct {
 	Requests   *requests.Store
 	PhotoAudit *photoaudit.Store
 	Holidays   *holidays.Store
+	Engage     *engage.Store
 	Calc       *dtrcalc.Service
 	Importer   *importer.Service
 	Kiosks     *kiosk.Store
@@ -116,6 +118,7 @@ func (a *API) Routes(app *fiber.App) {
 	secured.Post("/me/privacy", a.acceptPrivacy)
 	secured.Get("/attendance/today", a.today)
 	secured.Post("/attendance/clock", a.clock)
+	a.engageRoutes(secured)
 	a.requestRoutes(secured)
 	a.dtrFlowRoutes(secured)
 	a.photoAuditRoutes(secured)

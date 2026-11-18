@@ -9,6 +9,11 @@ import { ChangePin } from "./screens/ChangePin";
 import { Requests } from "./screens/Requests";
 import { Approvals } from "./screens/Approvals";
 import { BottomNav, type Screen } from "./components/BottomNav";
+import { More } from "./screens/More";
+import { Alerts } from "./screens/Alerts";
+import { Accomplishments } from "./screens/Accomplishments";
+import { Events } from "./screens/Events";
+import { Logbook } from "./screens/Logbook";
 import { PrivacyNotice } from "./components/PrivacyNotice";
 
 const EMP_KEY = "dtr.employee";
@@ -37,6 +42,8 @@ export default function App() {
   const [booting, setBooting] = useState(api.hasToken());
   const [endedNotice, setEndedNotice] = useState(false);
   const [approvalCount, setApprovalCount] = useState(0);
+  const [unread, setUnread] = useState(0);
+  const clearUnread = useCallback(() => setUnread(0), []);
   const [screen, setScreen] = useState<Screen>("home");
 
   const setLang = useCallback((l: Lang) => {
@@ -77,6 +84,15 @@ export default function App() {
     }
   }, [role]);
 
+  const ready = Boolean(employee && !employee.must_change_pin && employee.privacy_accepted);
+  useEffect(() => {
+    if (!ready) return;
+    const poll = () => api.notifications.list().then((n) => setUnread(n.unread)).catch(() => undefined);
+    void poll();
+    const id = window.setInterval(poll, 60_000);
+    return () => window.clearInterval(id);
+  }, [ready]);
+
   const signOut = useCallback((sessionEnded: boolean) => {
     api.setToken(null);
     cacheEmployee(null);
@@ -115,6 +131,11 @@ export default function App() {
         </main>
       </div>
     );
+  else if (screen === "more") view = <More employee={employee} approvals={approvalCount} onGo={setScreen} />;
+  else if (screen === "alerts") view = <Alerts employee={employee} onRead={clearUnread} />;
+  else if (screen === "accomplishments") view = <Accomplishments employee={employee} />;
+  else if (screen === "events") view = <Events employee={employee} />;
+  else if (screen === "logbook") view = <Logbook />;
   else if (screen === "admin") view = <Admin employee={employee} />;
   else if (screen === "dtr") view = <Dtr onSignOut={signOut} />;
   else if (screen === "requests") view = <Requests />;
@@ -127,7 +148,7 @@ export default function App() {
     <LangContext.Provider value={ctx}>
       <div className={showNav ? "has-nav" : undefined}>{view}</div>
       {showNav && employee && (
-        <BottomNav screen={screen} role={employee.role} approvals={approvalCount} onGo={setScreen} />
+        <BottomNav screen={screen} approvals={approvalCount} unread={unread} onGo={setScreen} />
       )}
     </LangContext.Provider>
   );

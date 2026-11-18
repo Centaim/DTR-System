@@ -41,6 +41,7 @@ type adminEmployee struct {
 	SupervisorID  *int64  `json:"supervisor_id"`
 	Schedule      *string `json:"schedule"`
 	ClockChannels int     `json:"clock_channels"`
+	Email         string  `json:"email"`
 }
 
 const adminCols = `e.id, e.employee_no, e.full_name, e.position, e.office, e.role::text,
@@ -49,12 +50,12 @@ const adminCols = `e.id, e.employee_no, e.full_name, e.position, e.office, e.rol
 	  (SELECT s.name FROM schedule_assignments a JOIN schedules s ON s.id = a.schedule_id
 	    WHERE a.employee_id = e.id AND a.effective_from <= (now() AT TIME ZONE 'Asia/Manila')::date
 	    ORDER BY a.effective_from DESC LIMIT 1),
-	  (SELECT name FROM schedules WHERE is_default)), e.clock_channels`
+	  (SELECT name FROM schedules WHERE is_default)), e.clock_channels, e.email`
 
 func scanAdmin(row pgx.Row) (adminEmployee, error) {
 	var e adminEmployee
 	err := row.Scan(&e.ID, &e.EmployeeNo, &e.FullName, &e.Position, &e.Office, &e.Role,
-		&e.Employment, &e.Active, &e.SupervisorID, &e.Schedule, &e.ClockChannels)
+		&e.Employment, &e.Active, &e.SupervisorID, &e.Schedule, &e.ClockChannels, &e.Email)
 	return e, err
 }
 
@@ -103,6 +104,7 @@ type employeeInput struct {
 	Active        *bool   `json:"active"`
 	SupervisorID  *int64  `json:"supervisor_id"` // 0 clears the supervisor
 	ClockChannels *int    `json:"clock_channels"`
+	Email         *string `json:"email"`
 }
 
 func clean(p *string, max int) (*string, bool) {
@@ -224,6 +226,13 @@ func (a *API) updateEmployee(c *fiber.Ctx) error {
 			return apiError(c, fiber.StatusForbidden, "forbidden", "You cannot change your own role.")
 		}
 	}
+	if in.Email != nil {
+		v := strings.TrimSpace(*in.Email)
+		if v != "" && (len(v) > 120 || !strings.Contains(v, "@") || strings.ContainsAny(v, " \r\n")) {
+			return apiError(c, fiber.StatusUnprocessableEntity, "invalid", "Enter a valid email address.")
+		}
+		in.Email = &v
+	}
 	if in.ClockChannels != nil && (*in.ClockChannels < 1 || *in.ClockChannels > 3) {
 		return apiError(c, fiber.StatusUnprocessableEntity, "invalid", "Choose at least one clock-in channel.")
 	}
@@ -248,10 +257,11 @@ func (a *API) updateEmployee(c *fiber.Ctx) error {
 		    active        = COALESCE($7, active),
 		    supervisor_id = CASE WHEN $8::bigint IS NULL THEN supervisor_id
 		                         WHEN $8::bigint = 0 THEN NULL ELSE $8::bigint END,
-		    clock_channels = COALESCE($9, clock_channels)
+		    clock_channels = COALESCE($9, clock_channels),
+		    email = COALESCE($10, email)
 		  WHERE id = $1 RETURNING *)
 		SELECT `+adminCols+` FROM upd e`,
-		id, name, pos, office, in.Role, in.Employment, in.Active, in.SupervisorID, in.ClockChannels))
+		id, name, pos, office, in.Role, in.Employment, in.Active, in.SupervisorID, in.ClockChannels, in.Email))
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {

@@ -34,6 +34,7 @@ export function Requests() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   const load = useCallback(() => {
     setFailed(false);
@@ -49,12 +50,14 @@ export function Requests() {
     setError("");
     setOk(false);
     try {
-      await api.requests.create({
+      const made = await api.requests.create({
         kind: f.kind,
         work_date: f.work_date,
         ...(missed ? { slot: f.slot, time: f.time } : f.date_to ? { date_to: f.date_to } : {}),
         reason: f.reason,
       });
+      if (file) await api.attachment.upload(made.id, file);
+      setFile(null);
       setF({ ...f, reason: "" });
       setOk(true);
       load();
@@ -123,6 +126,11 @@ export function Requests() {
             <label className="field">
               <span>{t.reqReason}</span>
               <textarea value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} rows={3} maxLength={500} required />
+            </label>
+            <label className="field">
+              <span>{t.reqAttach}</span>
+              <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <small className="muted">{t.reqAttachHelp}</small>
             </label>
             <div aria-live="polite">
               {error && <p className="msg bad">{error}</p>}
