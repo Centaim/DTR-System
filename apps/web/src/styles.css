@@ -1,0 +1,726 @@
+/* Design tokens. Light leads (daylight, office doors); graphite follows the system setting. */
+:root {
+  --ground: #eef0f2;
+  --panel: #ffffff;
+  --seam: #d3d8de;
+  --seam-strong: #8b949e;
+  --ink: #171b20;
+  --ink-2: #444c56;
+  --accent: #0a56b8;
+  --on-accent: #ffffff;
+  --ok: #0b7a3e;
+  --warn: #8a5a00;
+  --warn-fill: #d99a14;
+  --bad: #b3261e;
+  --focus: #0a56b8;
+  --scrim: #0b0d0f;
+
+  --radius: 6px;
+  --gutter: 16px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #14171a;
+    --panel: #1b1f23;
+    --seam: #2c3238;
+    --seam-strong: #6b7580;
+    --ink: #e9edf1;
+    --ink-2: #a9b2bc;
+    --accent: #7db4f4;
+    --on-accent: #0b1420;
+    --ok: #4cc27d;
+    --warn: #e6b04a;
+    --warn-fill: #e6b04a;
+    --bad: #f58f88;
+    --focus: #7db4f4;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+  accent-color: var(--accent);
+  scrollbar-color: var(--seam-strong) transparent;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+input {
+  caret-color: var(--accent);
+}
+
+h1,
+h2,
+p,
+ol,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Shell ---------- */
+
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(10px, env(safe-area-inset-top)) max(var(--gutter), env(safe-area-inset-right)) 10px
+    max(var(--gutter), env(safe-area-inset-left));
+  background: var(--panel);
+  border-bottom: 1px solid var(--seam);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.brand-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.office {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: var(--gutter) max(var(--gutter), env(safe-area-inset-right)) var(--gutter)
+    max(var(--gutter), env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.main.narrow {
+  max-width: 440px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 12px;
+}
+
+@media (min-width: 760px) {
+  .grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 16px;
+    padding-top: 24px;
+  }
+}
+
+/* ---------- Panels: hairline seams, one step of elevation, no shadow ---------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--seam);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.panel-h {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  margin-bottom: 12px;
+}
+
+.muted {
+  color: var(--ink-2);
+}
+
+.small {
+  font-size: 0.8125rem;
+}
+
+/* ---------- Status pill ---------- */
+
+.pill {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: right;
+  max-width: 55%;
+}
+
+.pill-wait {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+/* ---------- Clock panel ---------- */
+
+.who {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.role {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.date {
+  margin-top: 16px;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+}
+
+.time {
+  font-size: clamp(3.25rem, 17vw, 4.75rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 2px 0 6px;
+}
+
+.secs {
+  font-size: 0.4em;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  margin-left: 0.25em;
+}
+
+.punch {
+  margin-top: 20px;
+  width: 100%;
+  min-height: 76px;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 12px 20px;
+  text-align: left;
+}
+
+.punch-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.punch-main {
+  font-size: 1.375rem;
+  font-weight: 650;
+}
+
+.punch-sub {
+  font-size: 0.875rem;
+  font-weight: 500;
+  opacity: 0.92;
+}
+
+.notice-slot {
+  min-height: 0;
+}
+
+.msg {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--seam);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.msg::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.msg.ok {
+  border-color: var(--ok);
+}
+.msg.ok::before {
+  background: var(--ok);
+}
+.msg.warn {
+  border-color: var(--warn);
+}
+.msg.warn::before {
+  border: 2px dashed var(--warn);
+}
+.msg.bad {
+  border-color: var(--bad);
+}
+.msg.bad::before {
+  background: linear-gradient(45deg, transparent 40%, var(--bad) 40% 60%, transparent 60%);
+  border: 2px solid var(--bad);
+}
+
+/* ---------- Markers: state as form, never colour alone ---------- */
+
+.marker {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--seam-strong);
+  background: transparent;
+}
+
+.marker.small {
+  width: 10px;
+  height: 10px;
+  border-width: 2px;
+}
+
+.marker[data-state="synced"],
+.rail-row[data-state="synced"] .marker {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.marker[data-state="pending"],
+.rail-row[data-state="pending"] .marker {
+  border: 2px dashed var(--warn);
+  background: transparent;
+}
+
+.marker.struck {
+  border-color: var(--bad);
+  background: linear-gradient(45deg, transparent 42%, var(--bad) 42% 58%, transparent 58%);
+}
+
+/* ---------- Seam rail ---------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  padding-bottom: 20px;
+}
+
+.rail-row:last-child {
+  padding-bottom: 0;
+}
+
+.rail-row .marker {
+  margin-top: 3px;
+}
+
+/* The seam itself: solid once a log has synced, dashed ahead of it. */
+.rail-row:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 24px;
+  bottom: 2px;
+  border-left: 2px dashed var(--seam);
+}
+
+.rail-row[data-state="synced"]:not(:last-child)::before {
+  border-left: 2px solid var(--seam-strong);
+}
+
+.rail-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rail-slot {
+  font-weight: 600;
+}
+
+.rail-state {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.rail-row[data-state="pending"] .rail-state {
+  color: var(--warn);
+}
+
+.rail-row[data-state="empty"] .rail-slot {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.rail-time {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rail-row[data-state="empty"] .rail-time {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.rail-row[data-fresh="true"] .marker {
+  animation: register 420ms var(--ease-out);
+}
+
+@keyframes register {
+  from {
+    transform: scale(0.5);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.rejects {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--seam);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reject-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.reject-row .marker {
+  margin-top: 3px;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 120ms, transform 120ms var(--ease-out);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn.quiet {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--seam-strong);
+}
+
+.btn.quiet:hover:not(:disabled) {
+  background: var(--seam);
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Forms ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.field input {
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  background: var(--ground);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+  font-size: 1.125rem;
+}
+
+.field input:focus-visible {
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+
+/* ---------- Footer ---------- */
+
+.foot,
+.foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.foot {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 48px max(var(--gutter), env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
+}
+
+.foot-row {
+  margin-top: 8px;
+}
+
+/* Sign out sits apart from everything else on purpose. */
+.signout {
+  min-width: 120px;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.seg-btn {
+  min-width: 52px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--seam-strong);
+}
+
+.seg-btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--ground);
+}
+
+/* ---------- Camera sheet ---------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: var(--ground);
+  overflow-y: auto;
+}
+
+.sheet-head h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.sheet-head p {
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+}
+
+.viewfinder {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 240px;
+  width: 100%;
+  max-width: 520px;
+  align-self: center;
+  border-radius: var(--radius);
+  border: 1px solid var(--seam-strong);
+  background: var(--scrim);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.viewfinder video,
+.viewfinder .shot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.viewfinder video {
+  transform: scaleX(-1);
+}
+
+.viewfinder video[hidden] {
+  display: none;
+}
+
+.vf-note {
+  position: relative;
+  max-width: 28ch;
+  padding: 16px;
+  color: #e9edf1;
+  text-align: center;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.warn-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  max-width: 520px;
+  width: 100%;
+  align-self: center;
+  color: var(--warn);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 520px;
+  align-self: center;
+}
+
+.sheet-actions .btn.primary {
+  min-height: 64px;
+  font-size: 1.125rem;
+}
+
+/* Cancel is kept well away from the capture button. */
+.sheet-actions .cancel {
+  margin-top: 12px;
+}
+
+/* ---------- Utilities ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
