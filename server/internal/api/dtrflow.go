@@ -57,35 +57,18 @@ func (a *API) buildDTR(ctx context.Context, id int64, year int, month time.Month
 	if err != nil {
 		return dtrView{}, err
 	}
-	logs, err := a.Attendance.MonthLogs(ctx, id, year, month, a.Loc)
+	res, err := a.Calc.Month(ctx, id, e.Office, year, month)
 	if err != nil {
 		return dtrView{}, err
 	}
-	hoursFor, err := a.Schedules.HoursFunc(ctx, id)
-	if err != nil {
-		return dtrView{}, err
-	}
-	adjustments, marks, err := a.Requests.ForMonth(ctx, id, year, month)
-	if err != nil {
-		return dtrView{}, err
-	}
-	hol, err := a.Holidays.ForMonth(ctx, year, month)
-	if err != nil {
-		return dtrView{}, err
-	}
-	for d, label := range hol {
-		if _, ok := marks[d]; !ok {
-			marks[d] = label
-		}
-	}
-	sheet := dtr.Compute(year, month, append(logs, adjustments...), marks, hoursFor, a.Loc)
+	sheet, hoursFor := res.Sheet, res.HoursFor
 
 	official := []fiber.Map{}
-	seen := map[dtr.Hours]bool{}
+	seen := map[[2]dtr.Window]bool{}
 	for _, d := range sheet.Days {
 		h := hoursFor(time.Date(year, month, d.Day, 0, 0, 0, 0, a.Loc))
-		if !seen[h] {
-			seen[h] = true
+		if key := [2]dtr.Window{h.AM, h.PM}; !seen[key] {
+			seen[key] = true
 			official = append(official, fiber.Map{
 				"am_start": fmtHM(h.AM.Start), "am_end": fmtHM(h.AM.End),
 				"pm_start": fmtHM(h.PM.Start), "pm_end": fmtHM(h.PM.End),

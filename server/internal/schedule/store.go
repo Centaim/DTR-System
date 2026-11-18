@@ -28,22 +28,83 @@ type Schedule struct {
 	PMStart   string `json:"pm_start"`
 	PMEnd     string `json:"pm_end"`
 	IsDefault bool   `json:"is_default"`
+
+	Flexi           bool   `json:"flexi"`
+	GraceMinutes    int    `json:"grace_minutes"`
+	RequiredMinutes int    `json:"required_minutes"`
+	LatestIn        string `json:"latest_in"`
+	WorkDays        int    `json:"work_days"`
+	TwoLogs         bool   `json:"two_logs"`
+	Overnight       bool   `json:"overnight"`
 }
 
 func (s Schedule) hours() (dtr.Hours, error) {
-	return dtr.ParseHours(fmt.Sprintf("%s-%s,%s-%s", s.AMStart, s.AMEnd, s.PMStart, s.PMEnd))
+	var h dtr.Hours
+	var err error
+	if s.Overnight {
+		h, err = overnightHours(s)
+	} else {
+		h, err = dtr.ParseHours(fmt.Sprintf("%s-%s,%s-%s", s.AMStart, s.AMEnd, s.PMStart, s.PMEnd))
+	}
+	if err != nil {
+		return h, err
+	}
+	h.Grace, h.Flexi, h.TwoLog, h.Overnight = s.GraceMinutes, s.Flexi, s.TwoLogs, s.Overnight
+	if s.WorkDays != 0 {
+		h.WorkDays = uint8(s.WorkDays)
+	}
+	if s.Flexi {
+		h.Required = s.RequiredMinutes
+		if s.LatestIn != "" {
+			if h.LatestIn, err = dtr.ParseMinutes(s.LatestIn); err != nil {
+				return h, err
+			}
+		}
+	}
+	return h, nil
+}
+
+// overnightHours places each time after the shift's start, past 24:00 when needed.
+func overnightHours(s Schedule) (dtr.Hours, error) {
+	var m [4]int
+	for i, v := range []string{s.AMStart, s.AMEnd, s.PMStart, s.PMEnd} {
+		x, err := dtr.ParseMinutes(v)
+		if err != nil {
+			return dtr.Hours{}, err
+		}
+		if i > 0 && x < m[0] {
+			x += 24 * 60
+		}
+		m[i] = x
+	}
+	if !(m[0] < m[1] && m[1] <= m[2] && m[2] < m[3]) {
+		return dtr.Hours{}, errors.New("times must run in order")
+	}
+	w1, w2 := dtr.Window{Start: m[0], End: m[1]}, dtr.Window{Start: m[2], End: m[3]}
+	return dtr.Hours{AM: w1, PM: w2, WorkDays: 0b0011111, SuspendFrom: -1,
+		Required: (m[1] - m[0]) + (m[3] - m[2])}, nil
 }
 
 type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-const cols = `id, name, to_char(am_start,'HH24:MI'), to_char(am_end,'HH24:MI'),
-	to_char(pm_start,'HH24:MI'), to_char(pm_end,'HH24:MI'), is_default`
+func colsOf(t string) string {
+	return t + `id, ` + t + `name, to_char(` + t + `am_start,'HH24:MI'), to_char(` + t + `am_end,'HH24:MI'),
+	to_char(` + t + `pm_start,'HH24:MI'), to_char(` + t + `pm_end,'HH24:MI'), ` + t + `is_default, ` + t + `flexi, ` + t + `grace_minutes,
+	` + t + `required_minutes, COALESCE(to_char(` + t + `latest_in,'HH24:MI'),''), ` + t + `work_days, ` + t + `two_logs, ` + t + `overnight`
+}
+
+var cols = colsOf("")
+
+func dest(s *Schedule) []any {
+	return []any{&s.ID, &s.Name, &s.AMStart, &s.AMEnd, &s.PMStart, &s.PMEnd, &s.IsDefault, &s.Flexi, &s.GraceMinutes,
+		&s.RequiredMinutes, &s.LatestIn, &s.WorkDays, &s.TwoLogs, &s.Overnight}
+}
 
 func scan(row pgx.Row) (Schedule, error) {
 	var s Schedule
-	err := row.Scan(&s.ID, &s.Name, &s.AMStart, &s.AMEnd, &s.PMStart, &s.PMEnd, &s.IsDefault)
+	err := row.Scan(dest(&s)...)
 	return s, err
 }
 
@@ -69,13 +130,28 @@ func (st *Store) Create(ctx context.Context, in Schedule) (Schedule, error) {
 	if in.Name == "" || len(in.Name) > 60 {
 		return Schedule{}, fmt.Errorf("%w: name is required (60 characters at most)", ErrInvalid)
 	}
+	if in.WorkDays == 0 {
+		in.WorkDays = 31
+	}
+	if in.RequiredMinutes == 0 {
+		in.RequiredMinutes = 480
+	}
+	if in.GraceMinutes < 0 || in.GraceMinutes > 120 || in.RequiredMinutes < 60 || in.RequiredMinutes > 1440 || in.WorkDays < 1 || in.WorkDays > 127 {
+		return Schedule{}, fmt.Errorf("%w: grace, required hours or work days are out of range", ErrInvalid)
+	}
 	if _, err := in.hours(); err != nil {
 		return Schedule{}, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
+	var latest any
+	if in.Flexi && in.LatestIn != "" {
+		latest = in.LatestIn
+	}
 	s, err := scan(st.pool.QueryRow(ctx, `
-		INSERT INTO schedules (name, am_start, am_end, pm_start, pm_end)
-		VALUES ($1, $2::time, $3::time, $4::time, $5::time) RETURNING `+cols,
-		in.Name, in.AMStart, in.AMEnd, in.PMStart, in.PMEnd))
+		INSERT INTO schedules (name, am_start, am_end, pm_start, pm_end, flexi, grace_minutes,
+		                       required_minutes, latest_in, work_days, two_logs, overnight)
+		VALUES ($1, $2::time, $3::time, $4::time, $5::time, $6, $7, $8, $9::time, $10, $11, $12) RETURNING `+cols,
+		in.Name, in.AMStart, in.AMEnd, in.PMStart, in.PMEnd, in.Flexi, in.GraceMinutes,
+		in.RequiredMinutes, latest, in.WorkDays, in.TwoLogs, in.Overnight))
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return Schedule{}, ErrDuplicate
@@ -114,8 +190,7 @@ func (st *Store) HoursFunc(ctx context.Context, employeeID int64) (func(time.Tim
 	}
 
 	rows, err := st.pool.Query(ctx, `
-		SELECT a.effective_from, to_char(s.am_start,'HH24:MI'), to_char(s.am_end,'HH24:MI'),
-		       to_char(s.pm_start,'HH24:MI'), to_char(s.pm_end,'HH24:MI')
+		SELECT a.effective_from, `+colsOf("s.")+`
 		  FROM schedule_assignments a JOIN schedules s ON s.id = a.schedule_id
 		 WHERE a.employee_id = $1 ORDER BY a.effective_from`, employeeID)
 	if err != nil {
@@ -131,7 +206,7 @@ func (st *Store) HoursFunc(ctx context.Context, employeeID int64) (func(time.Tim
 	for rows.Next() {
 		var from time.Time
 		var sc Schedule
-		if err := rows.Scan(&from, &sc.AMStart, &sc.AMEnd, &sc.PMStart, &sc.PMEnd); err != nil {
+		if err := rows.Scan(append([]any{&from}, dest(&sc)...)...); err != nil {
 			return nil, err
 		}
 		h, err := sc.hours()
@@ -168,9 +243,7 @@ func (st *Store) HoursOn(ctx context.Context, day time.Time) (map[int64]dtr.Hour
 		return nil, dtr.Hours{}, err
 	}
 	rows, err := st.pool.Query(ctx, `
-		SELECT DISTINCT ON (a.employee_id) a.employee_id,
-		       to_char(s.am_start,'HH24:MI'), to_char(s.am_end,'HH24:MI'),
-		       to_char(s.pm_start,'HH24:MI'), to_char(s.pm_end,'HH24:MI')
+		SELECT DISTINCT ON (a.employee_id) a.employee_id, `+colsOf("s.")+`
 		  FROM schedule_assignments a JOIN schedules s ON s.id = a.schedule_id
 		 WHERE a.effective_from <= $1
 		 ORDER BY a.employee_id, a.effective_from DESC`, day.Format("2006-01-02"))
@@ -182,7 +255,7 @@ func (st *Store) HoursOn(ctx context.Context, day time.Time) (map[int64]dtr.Hour
 	for rows.Next() {
 		var id int64
 		var sc Schedule
-		if err := rows.Scan(&id, &sc.AMStart, &sc.AMEnd, &sc.PMStart, &sc.PMEnd); err != nil {
+		if err := rows.Scan(append([]any{&id}, dest(&sc)...)...); err != nil {
 			return nil, dtr.Hours{}, err
 		}
 		h, err := sc.hours()

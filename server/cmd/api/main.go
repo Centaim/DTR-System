@@ -18,6 +18,7 @@ import (
 	"dtr/server/internal/auth"
 	"dtr/server/internal/config"
 	"dtr/server/internal/db"
+	"dtr/server/internal/dtrcalc"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
 	"dtr/server/internal/kiosk"
@@ -122,10 +123,11 @@ func main() {
 		AllowMethods: "GET, POST, OPTIONS",
 	}))
 
-	attSvc := attendance.NewService(pool, store, appSettings)
 	schedStore := schedule.NewStore(pool)
+	attSvc := attendance.NewService(pool, store, appSettings, schedStore, loc)
 	reqStore := requests.NewStore(pool, appSettings, loc)
 	holStore := holidays.NewStore(pool)
+	calc := dtrcalc.New(attSvc, reqStore, schedStore, holStore, loc)
 
 	(&api.API{
 		Pool:       pool,
@@ -133,11 +135,12 @@ func main() {
 		Schedules:  schedStore,
 		Requests:   reqStore,
 		PhotoAudit: photoaudit.NewStore(pool),
+		Calc:       calc,
 		Holidays:   holStore,
 		Importer:   importer.NewService(pool),
 		Kiosks:     kiosk.NewStore(pool),
 		Settings:   appSettings,
-		Reports:    reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, appSettings),
+		Reports:    reports.NewService(pool, calc, schedStore, holStore, loc, appSettings),
 		Photos:     store,
 		JWTSecret:  cfg.JWTSecret,
 		MaxPhotoMB: cfg.MaxPhotoMB,

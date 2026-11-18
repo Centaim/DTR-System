@@ -1872,3 +1872,21 @@ table.data th.wrap {
     break-after: page;
   }
 }
+
+.day-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.day-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  min-width: 72px;
+  padding: 0 10px;
+  border: 1px solid var(--seam-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}

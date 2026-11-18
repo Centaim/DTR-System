@@ -43,6 +43,21 @@ export interface Schedule {
   pm_start: string;
   pm_end: string;
   is_default: boolean;
+  flexi: boolean;
+  grace_minutes: number;
+  required_minutes: number;
+  latest_in: string;
+  work_days: number;
+  two_logs: boolean;
+  overnight: boolean;
+}
+
+export interface Suspension {
+  id: number;
+  day: string;
+  from_time: string;
+  office: string;
+  reason: string;
 }
 
 export interface RequestItem {
@@ -194,6 +209,7 @@ export interface Today {
   work_date: string;
   logs: LogEntry[];
   next_slot: string | null;
+  slots: string[];
   server_time: string;
 }
 
@@ -207,6 +223,8 @@ export interface DtrDay {
   undertime_min: number;
   incomplete: boolean;
   adjusted: boolean;
+  late?: boolean;
+  rest?: boolean;
   mark: string;
 }
 
@@ -413,6 +431,10 @@ export const api = {
       request<{ kiosk: KioskRow; token: string }>("/api/admin/kiosks", json("POST", { name, office })),
     setKioskActive: (id: number, active: boolean) =>
       request<{ ok: boolean }>(`/api/admin/kiosks/${id}`, json("PATCH", { active })),
+    suspensions: () => request<Suspension[]>("/api/admin/suspensions"),
+    createSuspension: (body: Omit<Suspension, "id">) =>
+      request<{ ok: boolean }>("/api/admin/suspensions", json("POST", body)),
+    deleteSuspension: (id: number) => request<{ ok: boolean }>(`/api/admin/suspensions/${id}`, { method: "DELETE" }),
     createHoliday: (body: Holiday) => request<Holiday>("/api/admin/holidays", json("POST", body)),
     deleteHoliday: (day: string) =>
       request<{ ok: boolean }>(`/api/admin/holidays/${day}`, { method: "DELETE" }),

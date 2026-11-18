@@ -76,7 +76,7 @@ func (a *API) kioskVerify(c *fiber.Ctx) error {
 		return err
 	}
 	if today.NextSlot == nil {
-		return apiError(c, fiber.StatusConflict, "day_complete", "All four logs are already recorded for today.")
+		return apiError(c, fiber.StatusConflict, "day_complete", "All logs for today are already recorded.")
 	}
 	token, err := auth.IssueKioskToken(a.JWTSecret, e.ID, kioskOf(c).ID)
 	if err != nil {
@@ -134,7 +134,7 @@ func (a *API) kioskClock(c *fiber.Ctx) error {
 	case errors.Is(err, attendance.ErrBadPhoto):
 		return apiError(c, fiber.StatusUnprocessableEntity, "bad_photo", "The photo could not be read. Take it again.")
 	case errors.Is(err, attendance.ErrDayComplete):
-		return apiError(c, fiber.StatusConflict, "day_complete", "All four logs are already recorded for today.")
+		return apiError(c, fiber.StatusConflict, "day_complete", "All logs for today are already recorded.")
 	case errors.Is(err, attendance.ErrTooSoon):
 		return apiError(c, fiber.StatusConflict, "too_soon", "A log was just recorded. Wait a minute before clocking again.")
 	case err != nil:

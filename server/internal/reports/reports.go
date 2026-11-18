@@ -7,10 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"dtr/server/internal/attendance"
-	"dtr/server/internal/dtr"
+	"dtr/server/internal/dtrcalc"
 	"dtr/server/internal/holidays"
-	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
 	"dtr/server/internal/settings"
 
@@ -19,17 +17,16 @@ import (
 
 type Service struct {
 	pool     *pgxpool.Pool
-	att      *attendance.Service
-	reqs     *requests.Store
+	calc     *dtrcalc.Service
 	sched    *schedule.Store
 	hol      *holidays.Store
 	loc      *time.Location
 	settings *settings.Store
 }
 
-func NewService(pool *pgxpool.Pool, att *attendance.Service, reqs *requests.Store,
+func NewService(pool *pgxpool.Pool, calc *dtrcalc.Service,
 	sched *schedule.Store, hol *holidays.Store, loc *time.Location, cfg *settings.Store) *Service {
-	return &Service{pool: pool, att: att, reqs: reqs, sched: sched, hol: hol, loc: loc, settings: cfg}
+	return &Service{pool: pool, calc: calc, sched: sched, hol: hol, loc: loc, settings: cfg}
 }
 
 type Row struct {
@@ -52,14 +49,6 @@ type Summary struct {
 	WorkingDays       int    `json:"working_days"`
 	HabitualThreshold int    `json:"habitual_threshold"`
 	Rows              []Row  `json:"rows"`
-}
-
-func hhmmMinutes(s string) int {
-	t, err := time.Parse("15:04", s)
-	if err != nil {
-		return -1
-	}
-	return t.Hour()*60 + t.Minute()
 }
 
 func isWeekday(d time.Time) bool { return d.Weekday() != time.Saturday && d.Weekday() != time.Sunday }
@@ -111,26 +100,11 @@ func (s *Service) Summary(ctx context.Context, year int, month time.Month, offic
 	}
 
 	for _, e := range emps {
-		logs, err := s.att.MonthLogs(ctx, e.id, year, month, s.loc)
+		res, err := s.calc.Month(ctx, e.id, e.office, year, month)
 		if err != nil {
 			return Summary{}, err
 		}
-		adj, reqMarks, err := s.reqs.ForMonth(ctx, e.id, year, month)
-		if err != nil {
-			return Summary{}, err
-		}
-		marks := map[int]string{}
-		for d, l := range hol {
-			marks[d] = l
-		}
-		for d, l := range reqMarks {
-			marks[d] = l
-		}
-		hf, err := s.sched.HoursFunc(ctx, e.id)
-		if err != nil {
-			return Summary{}, err
-		}
-		sheet := dtr.Compute(year, month, append(logs, adj...), marks, hf, s.loc)
+		sheet, reqMarks := res.Sheet, res.Requested
 
 		r := Row{EmployeeNo: e.no, Name: e.name, Office: e.office, Position: e.position,
 			UndertimeMin: sheet.TotalUndertimeMin}
@@ -140,13 +114,13 @@ func (s *Service) Summary(ctx context.Context, year int, month time.Month, offic
 			if has {
 				r.PresentDays++
 			}
-			if d.AMIn != "" && hhmmMinutes(d.AMIn) > hf(date).AM.Start {
+			if d.Late {
 				r.LateDays++
 			}
-			if _, requested := reqMarks[d.Day]; requested && isWeekday(date) {
+			if _, requested := reqMarks[d.Day]; requested && !d.Rest {
 				r.ExcusedDays++
 			}
-			if !has && d.Mark == "" && isWeekday(date) && date.Before(today) {
+			if !has && d.Mark == "" && !d.Rest && date.Before(today) {
 				r.AbsentDays++
 			}
 			if d.Incomplete {
@@ -205,6 +179,18 @@ func (s *Service) Dashboard(ctx context.Context) (Dashboard, error) {
 	}
 	d := Dashboard{Date: dayStr, Holiday: hol[day.Day()], Offices: []OfficeCount{}, Recent: []Recent{}}
 	d.WorkingDay = isWeekday(day) && d.Holiday == ""
+
+	// Whole-day suspensions today, by office ("" means every office).
+	suspended := map[string]bool{}
+	list, err := s.hol.Suspensions(ctx, day.Year(), day.Month())
+	if err != nil {
+		return Dashboard{}, err
+	}
+	for _, x := range list {
+		if x.Day == dayStr && x.From == "" {
+			suspended[x.Office] = true
+		}
+	}
 
 	perEmp, def, err := s.sched.HoursOn(ctx, day)
 	if err != nil {
@@ -280,14 +266,17 @@ func (s *Service) Dashboard(ctx context.Context) (Dashboard, error) {
 		case present[id]:
 			d.Present++
 			oc.Present++
-			if t, ok := firstIn[id]; ok && t.Hour()*60+t.Minute() > h.AM.Start {
+			if t, ok := firstIn[id]; ok && h.LateAt(t.Hour()*60+t.Minute()) {
 				d.Late++
 				oc.Late++
 			}
 		case excused[id]:
 			d.Excused++
 			oc.Excused++
-		case d.WorkingDay:
+		case suspended[office] || suspended[""]:
+			d.Excused++
+			oc.Excused++
+		case d.WorkingDay && h.IsWorkDay(day.Weekday()):
 			d.NotIn++
 			oc.NotIn++
 		}

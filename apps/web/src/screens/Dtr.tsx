@@ -10,7 +10,7 @@ const hm = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "
 
 function DayCard({ d, t }: { d: DtrDay; t: Strings }) {
   const has = d.am_in || d.am_out || d.pm_in || d.pm_out;
-  const off = d.weekday === "Saturday" || d.weekday === "Sunday";
+  const off = d.rest ?? (d.weekday === "Saturday" || d.weekday === "Sunday");
   return (
     <li className="day-card" data-muted={!has || undefined}>
       <span className="day-num">

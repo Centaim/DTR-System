@@ -70,7 +70,7 @@ export function Form48({ data, code }: { data: Pick<DtrResponse, "employee" | "s
                 </tr>
               );
             }
-            const weekend = d.weekday === "Saturday" || d.weekday === "Sunday";
+            const weekend = d.rest ?? (d.weekday === "Saturday" || d.weekday === "Sunday");
             return (
               <tr key={d.day} data-incomplete={d.incomplete || undefined}>
                 <td>

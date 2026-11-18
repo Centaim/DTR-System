@@ -20,10 +20,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var Slots = []string{"am_in", "am_out", "pm_in", "pm_out"}
-
 var (
-	ErrDayComplete = errors.New("all four logs for today are already recorded")
+	ErrDayComplete = errors.New("all logs for today are already recorded")
 	ErrTooSoon     = errors.New("a log was recorded moments ago")
 	ErrBadPhoto    = errors.New("photo must be a JPEG, PNG or WebP image")
 )
@@ -38,10 +36,11 @@ type Log struct {
 }
 
 type Today struct {
-	WorkDate string  `json:"work_date"`
-	Logs     []Log   `json:"logs"`
-	NextSlot *string `json:"next_slot"`
-	Now      string  `json:"server_time"`
+	WorkDate string   `json:"work_date"`
+	Logs     []Log    `json:"logs"`
+	NextSlot *string  `json:"next_slot"`
+	Slots    []string `json:"slots"`
+	Now      string   `json:"server_time"`
 }
 
 type ClockInput struct {
@@ -77,10 +76,45 @@ type Service struct {
 	pool     *pgxpool.Pool
 	store    storage.Store
 	settings *settings.Store
+	hours    HoursSource
+	loc      *time.Location
 }
 
-func NewService(pool *pgxpool.Pool, store storage.Store, s *settings.Store) *Service {
-	return &Service{pool: pool, store: store, settings: s}
+// HoursSource gives the rules in force for an employee on any date.
+type HoursSource interface {
+	HoursFunc(ctx context.Context, employeeID int64) (func(time.Time) dtr.Hours, error)
+}
+
+func NewService(pool *pgxpool.Pool, store storage.Store, s *settings.Store, hours HoursSource, loc *time.Location) *Service {
+	return &Service{pool: pool, store: store, settings: s, hours: hours, loc: loc}
+}
+
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// workDay decides which calendar day a log belongs to. A night shift that began
+// yesterday and is still open keeps collecting logs on yesterday's record.
+func (s *Service) workDay(ctx context.Context, q querier, employeeID int64) (time.Time, dtr.Hours, error) {
+	hf, err := s.hours.HoursFunc(ctx, employeeID)
+	if err != nil {
+		return time.Time{}, dtr.Hours{}, err
+	}
+	now := time.Now().In(s.loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
+	yesterday := today.AddDate(0, 0, -1)
+	if prev := hf(yesterday); prev.Overnight {
+		var n int
+		var last *time.Time
+		if err := q.QueryRow(ctx, `SELECT count(*), max(recorded_at) FROM attendance_logs WHERE employee_id=$1 AND work_date=$2`,
+			employeeID, yesterday.Format("2006-01-02")).Scan(&n, &last); err != nil {
+			return time.Time{}, dtr.Hours{}, err
+		}
+		if n > 0 && n < len(prev.Slots()) && last != nil && time.Since(*last) < 18*time.Hour {
+			return yesterday, prev, nil
+		}
+	}
+	return today, hf(today), nil
 }
 
 func (s *Service) minGap() time.Duration {
@@ -136,18 +170,21 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 		return Log{}, false, err
 	}
 
-	var workDate time.Time
+	day, hours, err := s.workDay(ctx, tx, employeeID)
+	if err != nil {
+		return Log{}, false, err
+	}
+	workDate := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+	slots := hours.Slots()
 	var count int
 	var lastAt *time.Time
 	if err := tx.QueryRow(ctx, `
-		SELECT (now() AT TIME ZONE 'Asia/Manila')::date,
-		       (SELECT count(*) FROM attendance_logs
-		         WHERE employee_id = $1 AND work_date = (now() AT TIME ZONE 'Asia/Manila')::date),
+		SELECT (SELECT count(*) FROM attendance_logs WHERE employee_id = $1 AND work_date = $2),
 		       (SELECT max(recorded_at) FROM attendance_logs WHERE employee_id = $1)`,
-		employeeID).Scan(&workDate, &count, &lastAt); err != nil {
+		employeeID, workDate.Format("2006-01-02")).Scan(&count, &lastAt); err != nil {
 		return Log{}, false, err
 	}
-	if count >= len(Slots) {
+	if count >= len(slots) {
 		return Log{}, false, ErrDayComplete
 	}
 	if lastAt != nil && time.Since(*lastAt) < s.minGap() {
@@ -173,7 +210,7 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 		   latitude, longitude, offline, idempotency_key, photo_key, photo_sha256, photo_dhash)
 		VALUES ($1,$2,$3::log_slot,$4,$5::log_channel,$6,$7,$8,$9,$10,$11,$12,$13)
 		RETURNING `+logCols,
-		employeeID, workDate, Slots[count], in.ClientTime, channel, in.DeviceID,
+		employeeID, workDate, slots[count], in.ClientTime, channel, in.DeviceID,
 		in.Latitude, in.Longitude, in.Offline, in.IdempotencyKey, key, sum, dhashArg(pc)))
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -280,12 +317,12 @@ func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, 
 }
 
 func (s *Service) Today(ctx context.Context, employeeID int64) (Today, error) {
-	var day time.Time
-	var now time.Time
-	if err := s.pool.QueryRow(ctx,
-		`SELECT (now() AT TIME ZONE 'Asia/Manila')::date, now()`).Scan(&day, &now); err != nil {
+	workDay, hours, err := s.workDay(ctx, s.pool, employeeID)
+	if err != nil {
 		return Today{}, err
 	}
+	day := workDay.Format("2006-01-02")
+	now := time.Now()
 	rows, err := s.pool.Query(ctx,
 		`SELECT `+logCols+` FROM attendance_logs
 		  WHERE employee_id = $1 AND work_date = $2 ORDER BY recorded_at`, employeeID, day)
@@ -294,7 +331,8 @@ func (s *Service) Today(ctx context.Context, employeeID int64) (Today, error) {
 	}
 	defer rows.Close()
 
-	t := Today{WorkDate: day.Format("2006-01-02"), Logs: []Log{}, Now: now.UTC().Format(time.RFC3339)}
+	slots := hours.Slots()
+	t := Today{WorkDate: day, Logs: []Log{}, Slots: slots, Now: now.UTC().Format(time.RFC3339)}
 	for rows.Next() {
 		l, err := scanLog(rows)
 		if err != nil {
@@ -305,8 +343,8 @@ func (s *Service) Today(ctx context.Context, employeeID int64) (Today, error) {
 	if err := rows.Err(); err != nil {
 		return Today{}, err
 	}
-	if len(t.Logs) < len(Slots) {
-		next := Slots[len(t.Logs)]
+	if len(t.Logs) < len(slots) {
+		next := slots[len(t.Logs)]
 		t.NextSlot = &next
 	}
 	return t, nil
@@ -334,7 +372,7 @@ func photoKey(day time.Time, employeeID int64) (string, error) {
 // MonthLogs returns the employee's logs for a month in Asia/Manila time.
 func (s *Service) MonthLogs(ctx context.Context, employeeID int64, year int, month time.Month, loc *time.Location) ([]dtr.Log, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT slot::text, recorded_at FROM attendance_logs
+		SELECT work_date, slot::text, recorded_at FROM attendance_logs
 		 WHERE employee_id = $1 AND work_date >= $2 AND work_date < $3
 		 ORDER BY recorded_at`,
 		employeeID,
@@ -348,12 +386,11 @@ func (s *Service) MonthLogs(ctx context.Context, employeeID int64, year int, mon
 	var out []dtr.Log
 	for rows.Next() {
 		var slot string
-		var at time.Time
-		if err := rows.Scan(&slot, &at); err != nil {
+		var work, at time.Time
+		if err := rows.Scan(&work, &slot, &at); err != nil {
 			return nil, err
 		}
-		local := at.In(loc)
-		out = append(out, dtr.Log{Day: local.Day(), Slot: slot, At: local})
+		out = append(out, dtr.Log{Day: work.Day(), Slot: slot, At: at.In(loc)})
 	}
 	return out, rows.Err()
 }

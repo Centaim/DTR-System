@@ -31,7 +31,7 @@ export const kioskEn = {
   kWrong: "Employee number or PIN is incorrect.",
   kLocked: "Too many wrong PINs. Try again later, or ask HR to reset your PIN.",
   kMustChange: "Choose your own PIN first on the DTR app or website.",
-  kDayComplete: "All four logs are already recorded for today.",
+  kDayComplete: "All logs for today are already recorded.",
   kTooSoon: "A log was just recorded. Wait a minute and try again.",
   kNoCamera: "The camera is not available, so ID scanning cannot start.",
   // HR screen (English only for now)
@@ -84,7 +84,7 @@ export const kioskFil = {
   kWrong: "Mali ang employee number o PIN.",
   kLocked: "Masyadong maraming maling PIN. Subukan ulit mamaya, o hilingin sa HR na i-reset ang PIN.",
   kMustChange: "Pumili muna ng sarili ninyong PIN sa DTR app o website.",
-  kDayComplete: "Naitala na ang lahat ng apat na log ngayong araw.",
+  kDayComplete: "Naitala na ang lahat ng log ngayong araw.",
   kTooSoon: "Katatala lang ng log. Maghintay ng isang minuto at subukan ulit.",
   kNoCamera: "Hindi magamit ang camera, kaya hindi masisimulan ang pag-scan ng ID.",
 } as const;

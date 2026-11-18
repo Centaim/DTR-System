@@ -93,3 +93,65 @@ func (s *Store) Delete(ctx context.Context, day string) error {
 }
 
 func Message(err error) string { return strings.TrimPrefix(err.Error(), "invalid: ") }
+
+// Suspension stops work for everyone or one office, for a day or from a time.
+type Suspension struct {
+	ID     int64  `json:"id"`
+	Day    string `json:"day"`
+	From   string `json:"from_time"` // empty means the whole day
+	Office string `json:"office"`    // empty means every office
+	Reason string `json:"reason"`
+}
+
+func (s *Store) Suspensions(ctx context.Context, year int, month time.Month) ([]Suspension, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, day::text, COALESCE(to_char(from_time,'HH24:MI'),''), office, reason
+		FROM work_suspensions WHERE EXTRACT(year FROM day)=$1 AND ($2 = 0 OR EXTRACT(month FROM day)=$2) ORDER BY day`, year, int(month))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Suspension{}
+	for rows.Next() {
+		var x Suspension
+		if err := rows.Scan(&x.ID, &x.Day, &x.From, &x.Office, &x.Reason); err != nil {
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CreateSuspension(ctx context.Context, in Suspension, by int64) error {
+	in.Reason, in.Office = strings.TrimSpace(in.Reason), strings.TrimSpace(in.Office)
+	if _, err := time.Parse("2006-01-02", in.Day); err != nil {
+		return fmt.Errorf("%w: choose a date", ErrInvalid)
+	}
+	if len(in.Reason) < 3 || len(in.Reason) > 200 {
+		return fmt.Errorf("%w: give a reason of 3 to 200 characters", ErrInvalid)
+	}
+	var from any
+	if in.From != "" {
+		if _, err := time.Parse("15:04", in.From); err != nil {
+			return fmt.Errorf("%w: enter a valid time", ErrInvalid)
+		}
+		from = in.From
+	}
+	_, err := s.pool.Exec(ctx, `INSERT INTO work_suspensions (day, from_time, office, reason, created_by)
+		VALUES ($1, $2::time, $3, $4, $5)`, in.Day, from, in.Office, in.Reason, by)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ErrDuplicate
+	}
+	return err
+}
+
+func (s *Store) DeleteSuspension(ctx context.Context, id string) error {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM work_suspensions WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

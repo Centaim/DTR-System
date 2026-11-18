@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, NetworkError, api, deviceId, type Today } from "./api";
 import { queue, type QueueItem } from "./queue";
 
-export const SLOTS = ["am_in", "am_out", "pm_in", "pm_out"] as const;
+const DEFAULT_SLOTS = ["am_in", "am_out", "pm_in", "pm_out"];
 
 export type RowState = "synced" | "pending" | "empty";
 
 export interface Row {
-  slot: (typeof SLOTS)[number];
+  slot: string;
   state: RowState;
   at: string | null; // ISO time
 }
@@ -105,7 +105,8 @@ export function useAttendance() {
   const rejected = s.items.filter((i) => i.status === "rejected");
   const logs = s.today?.logs ?? [];
 
-  const rows: Row[] = SLOTS.map((slot, i) => {
+  const slots = s.today?.slots ?? DEFAULT_SLOTS;
+  const rows: Row[] = slots.map((slot, i) => {
     const log = logs[i];
     if (log) return { slot, state: "synced", at: log.recorded_at };
     const queued = pending[i - logs.length];
@@ -114,7 +115,7 @@ export function useAttendance() {
   });
 
   const filled = logs.length + pending.length;
-  const nextSlot = filled < SLOTS.length ? SLOTS[filled]! : null;
+  const nextSlot = filled < slots.length ? slots[filled]! : null;
 
   const clock = useCallback(
     async (photo: Blob): Promise<ClockResult> => {

@@ -13,6 +13,7 @@ import (
 
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
+	"dtr/server/internal/dtrcalc"
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/importer"
 	"dtr/server/internal/kiosk"
@@ -50,6 +51,7 @@ type API struct {
 	Requests   *requests.Store
 	PhotoAudit *photoaudit.Store
 	Holidays   *holidays.Store
+	Calc       *dtrcalc.Service
 	Importer   *importer.Service
 	Kiosks     *kiosk.Store
 	Settings   *settings.Store
@@ -362,7 +364,7 @@ func (a *API) clock(c *fiber.Ctx) error {
 	case errors.Is(err, attendance.ErrBadPhoto):
 		return apiError(c, fiber.StatusUnprocessableEntity, "bad_photo", "The photo could not be read. Take it again.")
 	case errors.Is(err, attendance.ErrDayComplete):
-		return apiError(c, fiber.StatusConflict, "day_complete", "All four logs for today are already recorded.")
+		return apiError(c, fiber.StatusConflict, "day_complete", "All logs for today are already recorded.")
 	case errors.Is(err, attendance.ErrTooSoon):
 		return apiError(c, fiber.StatusConflict, "too_soon", "A log was just recorded. Wait a minute before clocking again.")
 	case err != nil:

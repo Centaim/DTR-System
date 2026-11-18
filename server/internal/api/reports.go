@@ -23,6 +23,9 @@ func (a *API) reportRoutes(secured fiber.Router) {
 func (a *API) holidayAdminRoutes(g fiber.Router) {
 	g.Post("/holidays", a.createHoliday)
 	g.Delete("/holidays/:day", a.deleteHoliday)
+	g.Get("/suspensions", a.listSuspensions)
+	g.Post("/suspensions", a.createSuspension)
+	g.Delete("/suspensions/:id", a.deleteSuspension)
 }
 
 func (a *API) dashboard(c *fiber.Ctx) error {
@@ -138,5 +141,39 @@ func (a *API) deleteHoliday(c *fiber.Ctx) error {
 		return err
 	}
 	a.audit(c, "holiday.delete", "holiday:"+c.Params("day"))
+	return c.JSON(fiber.Map{"ok": true})
+}
+
+func (a *API) listSuspensions(c *fiber.Ctx) error {
+	list, err := a.Holidays.Suspensions(c.Context(), time.Now().In(a.Loc).Year(), 0)
+	if err != nil {
+		return err
+	}
+	return c.JSON(list)
+}
+
+func (a *API) createSuspension(c *fiber.Ctx) error {
+	var in holidays.Suspension
+	if err := c.BodyParser(&in); err != nil {
+		return apiError(c, fiber.StatusBadRequest, "bad_request", "The form could not be read.")
+	}
+	err := a.Holidays.CreateSuspension(c.Context(), in, actorID(c))
+	switch {
+	case errors.Is(err, holidays.ErrInvalid):
+		return apiError(c, fiber.StatusUnprocessableEntity, "invalid", holidays.Message(err))
+	case errors.Is(err, holidays.ErrDuplicate):
+		return apiError(c, fiber.StatusConflict, "duplicate", "A suspension already exists for that date and office.")
+	case err != nil:
+		return err
+	}
+	a.audit(c, "suspension.create", in.Day)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
+}
+
+func (a *API) deleteSuspension(c *fiber.Ctx) error {
+	if err := a.Holidays.DeleteSuspension(c.Context(), c.Params("id")); err != nil {
+		return apiError(c, fiber.StatusNotFound, "not_found", "That suspension was not found.")
+	}
+	a.audit(c, "suspension.delete", "suspension:"+c.Params("id"))
 	return c.JSON(fiber.Map{"ok": true})
 }

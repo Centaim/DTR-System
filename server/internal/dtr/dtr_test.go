@@ -108,3 +108,84 @@ func TestAdjustedLogIsFlagged(t *testing.T) {
 		t.Fatalf("got %+v", d)
 	}
 }
+
+func base(t *testing.T) Hours {
+	h, err := ParseHours("08:00-12:00,13:00-17:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
+func one(h Hours) func(time.Time) Hours { return func(time.Time) Hours { return h } }
+
+func TestGracePeriodForgivesSmallLateness(t *testing.T) {
+	h := base(t)
+	h.Grace = 10
+	logs := full(2, [2]int{8, 9}, [2]int{12, 0}, [2]int{13, 5}, [2]int{17, 0})
+	d := Compute(2026, 11, logs, nil, one(h), manila).Days[1]
+	if d.UndertimeMin != 0 || d.Late {
+		t.Fatalf("inside grace: %+v", d)
+	}
+	logs = full(3, [2]int{8, 11}, [2]int{12, 0}, [2]int{13, 0}, [2]int{17, 0})
+	d = Compute(2026, 11, logs, nil, one(h), manila).Days[2]
+	if d.UndertimeMin != 11 || !d.Late {
+		t.Fatalf("past grace counts from the real arrival: %+v", d)
+	}
+}
+
+func TestFlexitimeOwesTotalHoursOnly(t *testing.T) {
+	h, _ := ParseHours("07:00-12:00,13:00-19:00")
+	h.Flexi, h.Required, h.LatestIn = true, 480, 9*60+30
+	logs := full(2, [2]int{9, 30}, [2]int{12, 0}, [2]int{13, 0}, [2]int{18, 30})
+	if d := Compute(2026, 11, logs, nil, one(h), manila).Days[1]; d.UndertimeMin != 0 || d.Late {
+		t.Fatalf("full flexi day: %+v", d)
+	}
+	logs = full(3, [2]int{9, 45}, [2]int{12, 0}, [2]int{13, 0}, [2]int{17, 45})
+	if d := Compute(2026, 11, logs, nil, one(h), manila).Days[2]; d.UndertimeMin != 60 || !d.Late {
+		t.Fatalf("short flexi day: %+v", d)
+	}
+}
+
+func TestCompressedWeekRestsOnFriday(t *testing.T) {
+	h, _ := ParseHours("07:00-12:00,13:00-18:00")
+	h.WorkDays = 0b0001111
+	s := Compute(2026, 11, nil, nil, one(h), manila)
+	if !s.Days[5].Rest || s.Days[4].Rest { // Nov 6 is a Friday, Nov 5 a Thursday
+		t.Fatalf("friday rest=%v thursday rest=%v", s.Days[5].Rest, s.Days[4].Rest)
+	}
+	if h.Total() != 600 {
+		t.Fatalf("10-hour day total %d", h.Total())
+	}
+}
+
+func TestTwoLogDayExcludesLunch(t *testing.T) {
+	h := base(t)
+	h.TwoLog = true
+	logs := []Log{{Day: 2, Slot: "am_in", At: at(2, 8, 0)}, {Day: 2, Slot: "pm_out", At: at(2, 17, 0)}}
+	d := Compute(2026, 11, logs, nil, one(h), manila).Days[1]
+	if d.UndertimeMin != 0 || d.Incomplete {
+		t.Fatalf("two logs: %+v", d)
+	}
+	logs[1].At = at(2, 16, 0)
+	if d := Compute(2026, 11, logs, nil, one(h), manila).Days[1]; d.UndertimeMin != 60 {
+		t.Fatalf("left an hour early: %+v", d)
+	}
+}
+
+func TestOvernightShiftCountsPastMidnight(t *testing.T) {
+	h := Hours{AM: Window{22 * 60, 26 * 60}, PM: Window{27 * 60, 31 * 60}, WorkDays: weekdaysOnly, TwoLog: true, Overnight: true, SuspendFrom: -1}
+	logs := []Log{{Day: 2, Slot: "am_in", At: at(2, 22, 0)}, {Day: 2, Slot: "pm_out", At: at(3, 7, 0)}}
+	if d := Compute(2026, 11, logs, nil, one(h), manila).Days[1]; d.UndertimeMin != 0 || d.PMOut != "07:00" {
+		t.Fatalf("overnight: %+v", d)
+	}
+}
+
+func TestSuspensionExcusesTheRestOfTheDay(t *testing.T) {
+	h := base(t)
+	h.SuspendFrom = 13 * 60
+	logs := full(2, [2]int{8, 0}, [2]int{12, 0}, [2]int{13, 0}, [2]int{13, 0})
+	if d := Compute(2026, 11, logs, nil, one(h), manila).Days[1]; d.UndertimeMin != 0 {
+		t.Fatalf("suspended afternoon: %+v", d)
+	}
+}
