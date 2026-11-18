@@ -24,7 +24,9 @@ import (
 	"dtr/server/internal/photoaudit"
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
+	"dtr/server/internal/retention"
 	"dtr/server/internal/schedule"
+	"dtr/server/internal/settings"
 	"dtr/server/internal/storage"
 	"dtr/server/migrations"
 
@@ -69,10 +71,29 @@ func main() {
 		log.Fatal(err)
 	}
 
-	store, err := storage.NewDisk(cfg.PhotoDir)
+	disk, err := storage.NewDisk(cfg.PhotoDir)
 	if err != nil {
 		log.Fatal(err)
 	}
+	var store storage.Store = disk
+	if cfg.PhotoKey != nil {
+		if store, err = storage.NewEncrypted(disk, cfg.PhotoKey); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Print("WARNING: PHOTO_KEY is not set, so photos are stored unencrypted")
+	}
+	appSettings, err := settings.New(ctx, pool, map[string]int{
+		settings.MinGapSeconds:     cfg.MinGapSecs,
+		settings.RequestWindowDays: cfg.RequestDays,
+		settings.HabitualLateDays:  cfg.HabitualLateDays,
+		settings.PINMaxAttempts:    cfg.PINMaxAttempts,
+		settings.PINLockMinutes:    cfg.PINLockMinutes,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	go retention.New(pool, store, appSettings).Loop(ctx)
 
 	app := fiber.New(fiber.Config{
 		// Behind a proxy, rate limits must count real clients, not the proxy.
@@ -101,27 +122,26 @@ func main() {
 		AllowMethods: "GET, POST, OPTIONS",
 	}))
 
-	attSvc := attendance.NewService(pool, store, time.Duration(cfg.MinGapSecs)*time.Second)
+	attSvc := attendance.NewService(pool, store, appSettings)
 	schedStore := schedule.NewStore(pool)
-	reqStore := requests.NewStore(pool, cfg.RequestDays, loc)
+	reqStore := requests.NewStore(pool, appSettings, loc)
 	holStore := holidays.NewStore(pool)
 
 	(&api.API{
-		Pool:           pool,
-		Attendance:     attSvc,
-		Schedules:      schedStore,
-		Requests:       reqStore,
-		PhotoAudit:     photoaudit.NewStore(pool),
-		Holidays:       holStore,
-		Importer:       importer.NewService(pool),
-		Kiosks:         kiosk.NewStore(pool),
-		PINMaxAttempts: cfg.PINMaxAttempts,
-		PINLockMinutes: cfg.PINLockMinutes,
-		Reports:        reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, cfg.HabitualLateDays),
-		Photos:         store,
-		JWTSecret:      cfg.JWTSecret,
-		MaxPhotoMB:     cfg.MaxPhotoMB,
-		Loc:            loc,
+		Pool:       pool,
+		Attendance: attSvc,
+		Schedules:  schedStore,
+		Requests:   reqStore,
+		PhotoAudit: photoaudit.NewStore(pool),
+		Holidays:   holStore,
+		Importer:   importer.NewService(pool),
+		Kiosks:     kiosk.NewStore(pool),
+		Settings:   appSettings,
+		Reports:    reports.NewService(pool, attSvc, reqStore, schedStore, holStore, loc, appSettings),
+		Photos:     store,
+		JWTSecret:  cfg.JWTSecret,
+		MaxPhotoMB: cfg.MaxPhotoMB,
+		Loc:        loc,
 	}).Routes(app)
 
 	go func() {

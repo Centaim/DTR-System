@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"dtr/server/internal/dtr"
+	"dtr/server/internal/settings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -69,13 +70,13 @@ type Input struct {
 }
 
 type Store struct {
-	pool       *pgxpool.Pool
-	windowDays int
-	loc        *time.Location
+	pool     *pgxpool.Pool
+	settings *settings.Store
+	loc      *time.Location
 }
 
-func NewStore(pool *pgxpool.Pool, windowDays int, loc *time.Location) *Store {
-	return &Store{pool: pool, windowDays: windowDays, loc: loc}
+func NewStore(pool *pgxpool.Pool, s *settings.Store, loc *time.Location) *Store {
+	return &Store{pool: pool, settings: s, loc: loc}
 }
 
 const cols = `r.id, r.kind::text, r.work_date::text, r.date_to::text, r.slot::text,
@@ -106,8 +107,9 @@ func (s *Store) Create(ctx context.Context, employeeID int64, in Input) (Request
 	}
 	today := time.Now().In(s.loc)
 	todayDate := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, s.loc)
-	if day.Before(todayDate.AddDate(0, 0, -s.windowDays)) {
-		return Request{}, invalid("requests can go back %d days at most. Ask HR for older dates", s.windowDays)
+	window := s.settings.Int(settings.RequestWindowDays)
+	if day.Before(todayDate.AddDate(0, 0, -window)) {
+		return Request{}, invalid("requests can go back %d days at most. Ask HR for older dates", window)
 	}
 
 	var dateTo, slot, at any

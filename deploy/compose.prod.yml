@@ -33,6 +33,7 @@ services:
     environment:
       DATABASE_URL: postgres://dtr:${DB_PASSWORD}@db:5432/dtr?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:?run install.sh first}
+      PHOTO_KEY: ${PHOTO_KEY:?run install.sh again to add the photo key}
       CORS_ORIGINS: https://${SITE_ADDRESS},http://tauri.localhost
       TRUSTED_PROXIES: ${EDGE_SUBNET:-172.30.77.0/24}
       SEED_DEMO: "false"

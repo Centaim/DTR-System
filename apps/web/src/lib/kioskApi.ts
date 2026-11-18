@@ -68,11 +68,16 @@ export const kioskApi = {
   },
   info: () => call<KioskInfo>("/api/kiosk/info"),
   verify: (employee_no: string, pin: string) =>
-    call<{ session: string; name: string; next_slot: string }>("/api/kiosk/verify", {
+    call<{ session: string; name: string; next_slot: string; privacy_accepted: boolean }>("/api/kiosk/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ employee_no, pin }),
     }),
+  acceptPrivacy: (session: string) => {
+    const form = new FormData();
+    form.set("session", session);
+    return call<{ ok: boolean }>("/api/kiosk/privacy", { method: "POST", body: form });
+  },
   clock: (session: string, photo: Blob, key: string) => {
     const form = new FormData();
     form.set("session", session);

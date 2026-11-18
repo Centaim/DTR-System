@@ -21,6 +21,7 @@ import (
 	"dtr/server/internal/reports"
 	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
+	"dtr/server/internal/settings"
 	"dtr/server/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
@@ -44,31 +45,31 @@ var allRoles = map[string]bool{
 }
 
 type API struct {
-	Pool           *pgxpool.Pool
-	Attendance     *attendance.Service
-	Schedules      *schedule.Store
-	Requests       *requests.Store
-	PhotoAudit     *photoaudit.Store
-	Holidays       *holidays.Store
-	Importer       *importer.Service
-	Kiosks         *kiosk.Store
-	PINMaxAttempts int
-	PINLockMinutes int
-	Reports        *reports.Service
-	Photos         storage.Store
-	JWTSecret      []byte
-	MaxPhotoMB     int
-	Loc            *time.Location
+	Pool       *pgxpool.Pool
+	Attendance *attendance.Service
+	Schedules  *schedule.Store
+	Requests   *requests.Store
+	PhotoAudit *photoaudit.Store
+	Holidays   *holidays.Store
+	Importer   *importer.Service
+	Kiosks     *kiosk.Store
+	Settings   *settings.Store
+	Reports    *reports.Service
+	Photos     storage.Store
+	JWTSecret  []byte
+	MaxPhotoMB int
+	Loc        *time.Location
 }
 
 type employee struct {
-	ID            int64  `json:"id"`
-	EmployeeNo    string `json:"employee_no"`
-	FullName      string `json:"full_name"`
-	Position      string `json:"position"`
-	Office        string `json:"office"`
-	Role          string `json:"role"`
-	MustChangePIN bool   `json:"must_change_pin"`
+	ID              int64  `json:"id"`
+	EmployeeNo      string `json:"employee_no"`
+	FullName        string `json:"full_name"`
+	Position        string `json:"position"`
+	Office          string `json:"office"`
+	Role            string `json:"role"`
+	MustChangePIN   bool   `json:"must_change_pin"`
+	PrivacyAccepted bool   `json:"privacy_accepted"`
 }
 
 const empCols = `id, employee_no, full_name, position, office, role::text, must_change_pin`
@@ -109,6 +110,7 @@ func (a *API) Routes(app *fiber.App) {
 	secured := app.Group("/api", a.requireAuth)
 	secured.Get("/me", a.me)
 	secured.Post("/me/pin", rateLimit(), a.changePIN)
+	secured.Post("/me/privacy", a.acceptPrivacy)
 	secured.Get("/attendance/today", a.today)
 	secured.Post("/attendance/clock", a.clock)
 	secured.Get("/dtr", a.dtr)
@@ -119,6 +121,7 @@ func (a *API) Routes(app *fiber.App) {
 	adminGroup := secured.Group("/admin", a.requireRole(roleHR, roleSuper))
 	a.adminRoutes(adminGroup)
 	a.holidayAdminRoutes(adminGroup)
+	a.governanceRoutes(adminGroup)
 }
 
 // dummyHash makes unknown employee numbers cost the same as wrong PINs.
@@ -161,7 +164,7 @@ func (a *API) verifyCredentials(ctx context.Context, employeeNo, pin string) (em
 			UPDATE employees SET
 			  failed_attempts = CASE WHEN failed_attempts + 1 >= $2 THEN 0 ELSE failed_attempts + 1 END,
 			  locked_until    = CASE WHEN failed_attempts + 1 >= $2 THEN now() + ($3 * interval '1 minute') ELSE locked_until END
-			WHERE id = $1`, e.ID, a.PINMaxAttempts, a.PINLockMinutes)
+			WHERE id = $1`, e.ID, a.Settings.Int(settings.PINMaxAttempts), a.Settings.Int(settings.PINLockMinutes))
 		return employee{}, credInvalid, err
 	}
 	if _, err := a.Pool.Exec(ctx, `UPDATE employees SET failed_attempts = 0, locked_until = NULL WHERE id = $1`, e.ID); err != nil {
@@ -173,7 +176,7 @@ func (a *API) verifyCredentials(ctx context.Context, employeeNo, pin string) (em
 func (a *API) credentialError(c *fiber.Ctx, r credentialResult) error {
 	if r == credLocked {
 		return apiError(c, fiber.StatusLocked, "locked",
-			fmt.Sprintf("Too many wrong PINs. Try again in %d minutes, or ask HR to reset your PIN.", a.PINLockMinutes))
+			fmt.Sprintf("Too many wrong PINs. Try again in %d minutes, or ask HR to reset your PIN.", a.Settings.Int(settings.PINLockMinutes)))
 	}
 	return apiError(c, fiber.StatusUnauthorized, "invalid_credentials", "Employee number or PIN is incorrect.")
 }
@@ -192,6 +195,9 @@ func (a *API) login(c *fiber.Ctx) error {
 	}
 	if res != credOK {
 		return a.credentialError(c, res)
+	}
+	if e.PrivacyAccepted, err = a.privacyAccepted(c.Context(), e.ID); err != nil {
+		return err
 	}
 	token, err := auth.IssueToken(a.JWTSecret, e.ID)
 	if err != nil {
@@ -213,15 +219,20 @@ func (a *API) requireAuth(c *fiber.Ctx) error {
 	}
 
 	var role string
-	var active, mustChange bool
-	err = a.Pool.QueryRow(c.Context(),
-		`SELECT role::text, active, must_change_pin FROM employees WHERE id = $1`, id).
-		Scan(&role, &active, &mustChange)
+	var active, mustChange, accepted bool
+	err = a.Pool.QueryRow(c.Context(), `
+		SELECT role::text, active, must_change_pin,
+		       EXISTS (SELECT 1 FROM privacy_acceptances p WHERE p.employee_id = e.id AND p.version = $2)
+		  FROM employees e WHERE e.id = $1`, id, a.Settings.Int(settings.PrivacyVersion)).
+		Scan(&role, &active, &mustChange, &accepted)
 	if err != nil || !active {
 		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "This account is no longer active.")
 	}
 	if mustChange && c.Path() != "/api/me" && c.Path() != "/api/me/pin" {
 		return apiError(c, fiber.StatusForbidden, "pin_change_required", "Choose a new PIN before continuing.")
+	}
+	if !accepted && c.Path() != "/api/me" && c.Path() != "/api/me/pin" && c.Path() != "/api/me/privacy" {
+		return apiError(c, fiber.StatusForbidden, "privacy_required", "Read and accept the privacy notice to continue.")
 	}
 	c.Locals("employee_id", id)
 	c.Locals("role", role)
@@ -259,6 +270,9 @@ func (a *API) me(c *fiber.Ctx) error {
 	e, err := scanEmployee(a.Pool.QueryRow(c.Context(),
 		`SELECT `+empCols+` FROM employees WHERE id = $1`, actorID(c)))
 	if err != nil {
+		return err
+	}
+	if e.PrivacyAccepted, err = a.privacyAccepted(c.Context(), e.ID); err != nil {
 		return err
 	}
 	return c.JSON(e)

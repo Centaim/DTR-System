@@ -27,10 +27,12 @@ HTTPS_PORT=${HTTPS_PORT:-443}
 DB_PASSWORD=$(openssl rand -hex 24)
 JWT_SECRET=$(openssl rand -hex 32)
 BACKUP_PASSPHRASE=$(openssl rand -hex 32)
+PHOTO_KEY=$(openssl rand -hex 32)
 BACKUP_HOUR=1
 BACKUP_KEEP_DAYS=30
 ENV
 fi
+grep -q "^PHOTO_KEY=" .env || echo "PHOTO_KEY=$(openssl rand -hex 32)" >> .env
 mkdir -p backups
 
 docker compose -f compose.prod.yml up -d --build --wait
@@ -39,8 +41,8 @@ echo
 echo "The system is running at https://$site"
 if [ "$new" = yes ]; then
 	echo
-	echo "IMPORTANT: copy BACKUP_PASSPHRASE from deploy/.env to a safe place away from"
-	echo "this server. Backups cannot be restored without it."
+	echo "IMPORTANT: copy BACKUP_PASSPHRASE and PHOTO_KEY from deploy/.env to a safe place"
+	echo "away from this server. Backups and photos cannot be recovered without them."
 	echo
 	echo "Create the first administrator:"
 	echo "  docker compose -f compose.prod.yml exec api /app/api create-admin -no ADMIN-1 -name \"Full Name\""

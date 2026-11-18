@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -19,6 +20,7 @@ type Config struct {
 	HabitualLateDays int // late days in a month that flag habitual tardiness
 	PINMaxAttempts   int // wrong PINs in a row before the account locks
 	PINLockMinutes   int
+	PhotoKey         []byte   // 32 bytes; photos are encrypted at rest when set
 	TrustedProxies   []string // proxies allowed to report the real client address
 	CORSOrigins      string
 	SeedDemo         bool
@@ -67,6 +69,13 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("PIN_LOCK_MINUTES must be a positive integer")
 	}
 	c.PINMaxAttempts, c.PINLockMinutes = maxTries, lock
+	if v := os.Getenv("PHOTO_KEY"); v != "" {
+		key, err := hex.DecodeString(v)
+		if err != nil || len(key) != 32 {
+			return c, fmt.Errorf("PHOTO_KEY must be 64 hexadecimal characters")
+		}
+		c.PhotoKey = key
+	}
 	for _, p := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
 		if p = strings.TrimSpace(p); p != "" {
 			c.TrustedProxies = append(c.TrustedProxies, p)

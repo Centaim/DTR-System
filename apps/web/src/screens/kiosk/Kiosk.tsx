@@ -6,6 +6,7 @@ import { kioskApi, type KioskInfo } from "../../lib/kioskApi";
 import { clockParts, formatDate, formatTime } from "../../lib/time";
 import { CameraSheet } from "../../components/CameraSheet";
 import { LangSwitch } from "../../components/LangSwitch";
+import { PrivacyNotice } from "../../components/PrivacyNotice";
 import { KeyPad } from "./KeyPad";
 import { ScanSheet } from "./ScanSheet";
 
@@ -14,7 +15,7 @@ type Step =
   | { name: "idle" }
   | { name: "scan" }
   | { name: "pin"; no: string }
-  | { name: "photo"; session: string; person: string; slot: string }
+  | { name: "privacy" | "photo"; session: string; person: string; slot: string }
   | { name: "sending" }
   | { name: "done"; person: string; slot: string; at: string };
 
@@ -100,7 +101,7 @@ function Kiosk() {
   // Back to the start when nobody is using it, so one person's number is never left on screen.
   useEffect(() => {
     if (step.name === "idle" || step.name === "pair" || step.name === "sending") return;
-    const ms = step.name === "done" ? DONE_MS : IDLE_MS;
+    const ms = step.name === "done" ? DONE_MS : step.name === "privacy" ? 100_000 : IDLE_MS;
     const id = window.setTimeout(reset, ms);
     return () => window.clearTimeout(id);
   }, [step, no, pin, reset]);
@@ -127,7 +128,7 @@ function Kiosk() {
     try {
       const r = await kioskApi.verify(step.no, pin);
       setPin("");
-      setStep({ name: "photo", session: r.session, person: r.name, slot: r.next_slot });
+      setStep({ name: r.privacy_accepted ? "photo" : "privacy", session: r.session, person: r.name, slot: r.next_slot });
     } catch (e) {
       setPin("");
       setError(errorText(e, t));
@@ -169,6 +170,20 @@ function Kiosk() {
             {t.kPairBtn}
           </button>
         </form>
+      </main>
+    );
+  }
+
+  if (step.name === "privacy") {
+    const next = step;
+    return (
+      <main className="kiosk">
+        <PrivacyNotice
+          onAccept={async () => {
+            await kioskApi.acceptPrivacy(next.session);
+            setStep({ ...next, name: "photo" });
+          }}
+        />
       </main>
     );
   }

@@ -12,6 +12,7 @@ import (
 
 	"dtr/server/internal/dtr"
 	"dtr/server/internal/photocheck"
+	"dtr/server/internal/settings"
 	"dtr/server/internal/storage"
 
 	"github.com/jackc/pgx/v5"
@@ -73,14 +74,28 @@ func DefaultFlagRules() FlagRules {
 }
 
 type Service struct {
-	pool   *pgxpool.Pool
-	store  storage.Store
-	minGap time.Duration
-	rules  FlagRules
+	pool     *pgxpool.Pool
+	store    storage.Store
+	settings *settings.Store
 }
 
-func NewService(pool *pgxpool.Pool, store storage.Store, minGap time.Duration) *Service {
-	return &Service{pool: pool, store: store, minGap: minGap, rules: DefaultFlagRules()}
+func NewService(pool *pgxpool.Pool, store storage.Store, s *settings.Store) *Service {
+	return &Service{pool: pool, store: store, settings: s}
+}
+
+func (s *Service) minGap() time.Duration {
+	return time.Duration(s.settings.Int(settings.MinGapSeconds)) * time.Second
+}
+
+// flagRules reads the agency's current thresholds.
+func (s *Service) flagRules() FlagRules {
+	r := DefaultFlagRules()
+	r.DarkLuma = float64(s.settings.Int(settings.FlagDarkLuma))
+	r.SimilarDistance = s.settings.Int(settings.FlagSimilarBits)
+	r.SkewTolerance = time.Duration(s.settings.Int(settings.FlagSkewMinutes)) * time.Minute
+	r.LateSync = time.Duration(s.settings.Int(settings.FlagLateSyncMins)) * time.Minute
+	r.SharedDevice = time.Duration(s.settings.Int(settings.FlagSharedDevMins)) * time.Minute
+	return r
 }
 
 const logCols = `id, slot::text, recorded_at, client_time, offline, channel::text`
@@ -135,7 +150,7 @@ func (s *Service) Clock(ctx context.Context, employeeID int64, in ClockInput) (L
 	if count >= len(Slots) {
 		return Log{}, false, ErrDayComplete
 	}
-	if lastAt != nil && time.Since(*lastAt) < s.minGap {
+	if lastAt != nil && time.Since(*lastAt) < s.minGap() {
 		return Log{}, false, ErrTooSoon
 	}
 
@@ -185,10 +200,11 @@ func dhashArg(pc photocheck.Result) any {
 
 // flag records anomaly flags for a new log, in the same transaction as the log.
 func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, in ClockInput, channel string, pc photocheck.Result, sha string) error {
+	rules := s.flagRules()
 	type finding struct{ kind, detail string }
 	var found []finding
 
-	if pc.Decoded && pc.Luma < s.rules.DarkLuma {
+	if pc.Decoded && pc.Luma < rules.DarkLuma {
 		found = append(found, finding{"dark_photo", fmt.Sprintf("Average brightness %.0f of 255", pc.Luma)})
 	}
 
@@ -196,7 +212,7 @@ func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, 
 		SELECT id, photo_sha256, photo_dhash FROM attendance_logs
 		 WHERE employee_id = $1 AND id <> $2 AND recorded_at > now() - ($3 * interval '1 second')
 		 ORDER BY recorded_at DESC LIMIT 300`,
-		employeeID, l.ID, int64(s.rules.ReuseLookback/time.Second))
+		employeeID, l.ID, int64(rules.ReuseLookback/time.Second))
 	if err != nil {
 		return err
 	}
@@ -212,7 +228,7 @@ func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, 
 		if prevSum == sha && identical == "" {
 			identical = fmt.Sprintf("Identical to log #%d", id)
 		} else if pc.Decoded && photocheck.Informative(pc.DHash) && prevHash != nil && photocheck.Informative(uint64(*prevHash)) && similar == "" {
-			if d := photocheck.Distance(pc.DHash, uint64(*prevHash)); d <= s.rules.SimilarDistance {
+			if d := photocheck.Distance(pc.DHash, uint64(*prevHash)); d <= rules.SimilarDistance {
 				similar = fmt.Sprintf("Nearly identical to log #%d (%d of 64 bits differ)", id, d)
 			}
 		}
@@ -236,7 +252,7 @@ func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, 
 			 WHERE l.device_id = $1 AND l.employee_id <> $2 AND l.channel = 'mobile'
 			   AND l.recorded_at > now() - ($3 * interval '1 second')
 			 ORDER BY l.recorded_at DESC LIMIT 1`,
-			in.DeviceID, employeeID, int64(s.rules.SharedDevice/time.Second)).Scan(&no, &secs)
+			in.DeviceID, employeeID, int64(rules.SharedDevice/time.Second)).Scan(&no, &secs)
 		if err == nil {
 			found = append(found, finding{"shared_device", fmt.Sprintf("Same device used by %s %d min earlier", no, secs/60)})
 		} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -246,10 +262,10 @@ func (s *Service) flag(ctx context.Context, tx pgx.Tx, employeeID int64, l Log, 
 
 	if in.ClientTime != nil {
 		diff := l.RecordedAt.Sub(*in.ClientTime)
-		if !in.Offline && (diff > s.rules.SkewTolerance || -diff > s.rules.SkewTolerance) {
+		if !in.Offline && (diff > rules.SkewTolerance || -diff > rules.SkewTolerance) {
 			found = append(found, finding{"clock_skew", fmt.Sprintf("Device clock differs from the server by %d min", int(diff.Abs().Minutes()))})
 		}
-		if in.Offline && diff > s.rules.LateSync {
+		if in.Offline && diff > rules.LateSync {
 			found = append(found, finding{"late_sync", fmt.Sprintf("Saved offline and reached the server %d min later", int(diff.Minutes()))})
 		}
 	}

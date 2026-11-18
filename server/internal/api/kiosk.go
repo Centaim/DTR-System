@@ -26,6 +26,7 @@ func (a *API) kioskRoutes(app *fiber.App) {
 			return apiError(c, fiber.StatusTooManyRequests, "rate_limited", "Too many attempts. Wait a minute and try again.")
 		},
 	}), a.kioskVerify)
+	g.Post("/privacy", a.kioskPrivacy)
 	g.Post("/clock", a.kioskClock)
 }
 
@@ -81,7 +82,11 @@ func (a *API) kioskVerify(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(fiber.Map{"session": token, "name": e.FullName, "next_slot": *today.NextSlot})
+	accepted, err := a.privacyAccepted(c.Context(), e.ID)
+	if err != nil {
+		return err
+	}
+	return c.JSON(fiber.Map{"session": token, "name": e.FullName, "next_slot": *today.NextSlot, "privacy_accepted": accepted})
 }
 
 func (a *API) kioskClock(c *fiber.Ctx) error {
@@ -110,6 +115,11 @@ func (a *API) kioskClock(c *fiber.Ctx) error {
 		return err
 	}
 
+	if ok, err := a.privacyAccepted(c.Context(), empID); err != nil {
+		return err
+	} else if !ok {
+		return apiError(c, fiber.StatusForbidden, "privacy_required", "Read and accept the privacy notice to continue.")
+	}
 	var name string
 	var active bool
 	if err := a.Pool.QueryRow(c.Context(), `SELECT full_name, active FROM employees WHERE id = $1`, empID).Scan(&name, &active); err != nil || !active {

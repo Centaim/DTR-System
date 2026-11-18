@@ -20,7 +20,7 @@ docker compose -f compose.prod.yml exec api /app/api create-admin -no ADMIN-1 -n
 
 The temporary PIN is printed once, and must be changed at first sign-in.
 
-**Copy `BACKUP_PASSPHRASE` from `deploy/.env` to a safe place away from this server.** Backups cannot be restored without it.
+**Copy `BACKUP_PASSPHRASE` and `PHOTO_KEY` from `deploy/.env` to a safe place away from this server.** Backups cannot be restored without the passphrase, and restored photos cannot be opened without the photo key.
 
 With `internal`, each device must trust the server's certificate, or the browser will warn and may block the camera. Export it with:
 
@@ -49,5 +49,5 @@ Copy the archives to another machine regularly. A backup on the same disk does n
 ## Security notes
 
 - Only ports 80 and 443 are open. The database and API are not reachable from outside.
-- Photos are stored as plain files in a Docker volume. Put the server's data on an encrypted disk to meet the plan's encryption-at-rest requirement.
+- Photos are encrypted with AES-256-GCM before they are written to disk.
 - Treat `deploy/.env` and kiosk tokens like passwords.

@@ -8,6 +8,7 @@ export interface Employee {
   office: string;
   role: string;
   must_change_pin: boolean;
+  privacy_accepted: boolean;
 }
 
 export interface AdminEmployee {
@@ -162,6 +163,23 @@ export interface KioskRow {
   office: string;
   active: boolean;
   last_seen_at: string | null;
+}
+
+export interface SettingRow {
+  key: string;
+  group: string;
+  default: number;
+  min: number;
+  max: number;
+  value: number;
+}
+
+export interface LegalHold {
+  id: number;
+  employee_no: string;
+  name: string;
+  reason: string;
+  created_at: string;
 }
 
 export interface LogEntry {
@@ -323,7 +341,17 @@ export const api = {
       request<{ ok: boolean }>(`/api/audit/logs/${logId}/review`, json("POST", { outcome, note })),
   },
 
+  acceptPrivacy: () => request<{ ok: boolean }>("/api/me/privacy", { method: "POST" }),
+
   admin: {
+    settings: () => request<SettingRow[]>("/api/admin/settings"),
+    saveSettings: (values: Record<string, number>) =>
+      request<SettingRow[]>("/api/admin/settings", json("PUT", values)),
+    legalHolds: () => request<LegalHold[]>("/api/admin/legal-holds"),
+    createLegalHold: (employee_no: string, reason: string) =>
+      request<{ ok: boolean }>("/api/admin/legal-holds", json("POST", { employee_no, reason })),
+    releaseLegalHold: (id: number) =>
+      request<{ ok: boolean }>(`/api/admin/legal-holds/${id}/release`, { method: "POST" }),
     employees: (q: string) =>
       request<AdminEmployee[]>(`/api/admin/employees?q=${encodeURIComponent(q)}`),
     createEmployee: (body: EmployeeInput) =>

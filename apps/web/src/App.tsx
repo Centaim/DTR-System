@@ -9,6 +9,7 @@ import { ChangePin } from "./screens/ChangePin";
 import { Requests } from "./screens/Requests";
 import { Approvals } from "./screens/Approvals";
 import { BottomNav, type Screen } from "./components/BottomNav";
+import { PrivacyNotice } from "./components/PrivacyNotice";
 
 const EMP_KEY = "dtr.employee";
 
@@ -67,7 +68,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const role = employee?.must_change_pin ? undefined : employee?.role;
+  const role = employee?.must_change_pin || !employee?.privacy_accepted ? undefined : employee.role;
   useEffect(() => {
     if (role === "supervisor" || role === "hr_admin" || role === "super_admin") {
       api.approvals.pending().then((l) => setApprovalCount(l.length)).catch(() => undefined);
@@ -99,13 +100,26 @@ export default function App() {
         onSignOut={() => signOut(false)}
       />
     );
+  else if (!employee.privacy_accepted)
+    view = (
+      <div className="shell">
+        <main className="main narrow">
+          <PrivacyNotice
+            onAccept={async () => {
+              await api.acceptPrivacy();
+              signedIn({ ...employee, privacy_accepted: true });
+            }}
+          />
+        </main>
+      </div>
+    );
   else if (screen === "admin") view = <Admin employee={employee} />;
   else if (screen === "dtr") view = <Dtr onSignOut={signOut} />;
   else if (screen === "requests") view = <Requests />;
   else if (screen === "approvals") view = <Approvals onCount={setApprovalCount} />;
   else view = <Home employee={employee} onSignOut={signOut} />;
 
-  const showNav = !booting && employee !== null && !employee.must_change_pin;
+  const showNav = !booting && employee !== null && !employee.must_change_pin && employee.privacy_accepted;
 
   return (
     <LangContext.Provider value={ctx}>

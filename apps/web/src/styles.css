@@ -1734,3 +1734,40 @@ table.data th.wrap {
   background: var(--ground);
   user-select: all;
 }
+
+/* ---------- Privacy notice and settings ---------- */
+
+.privacy {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.privacy-h {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.set-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--seam);
+}
+
+.set-group legend {
+  padding-right: 8px;
+  font-weight: 700;
+}
+
+.set-group small {
+  font-weight: 400;
+}
+
+.set-group input:disabled {
+  color: var(--ink-2);
+}

@@ -15,6 +15,7 @@ import (
 type Store interface {
 	Put(ctx context.Context, key string, data []byte) (sha256Hex string, err error)
 	Get(ctx context.Context, key string) ([]byte, error)
+	Delete(ctx context.Context, key string) error
 }
 
 type Disk struct{ root string }
@@ -55,4 +56,16 @@ func (d *Disk) Get(_ context.Context, key string) ([]byte, error) {
 		return nil, err
 	}
 	return os.ReadFile(p)
+}
+
+// Delete removes a photo. A photo that is already gone is not an error.
+func (d *Disk) Delete(_ context.Context, key string) error {
+	p, err := d.path(key)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

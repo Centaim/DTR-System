@@ -12,6 +12,7 @@ import (
 	"dtr/server/internal/holidays"
 	"dtr/server/internal/requests"
 	"dtr/server/internal/schedule"
+	"dtr/server/internal/settings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,12 +24,12 @@ type Service struct {
 	sched    *schedule.Store
 	hol      *holidays.Store
 	loc      *time.Location
-	habitual int
+	settings *settings.Store
 }
 
 func NewService(pool *pgxpool.Pool, att *attendance.Service, reqs *requests.Store,
-	sched *schedule.Store, hol *holidays.Store, loc *time.Location, habitualLateDays int) *Service {
-	return &Service{pool: pool, att: att, reqs: reqs, sched: sched, hol: hol, loc: loc, habitual: habitualLateDays}
+	sched *schedule.Store, hol *holidays.Store, loc *time.Location, cfg *settings.Store) *Service {
+	return &Service{pool: pool, att: att, reqs: reqs, sched: sched, hol: hol, loc: loc, settings: cfg}
 }
 
 type Row struct {
@@ -74,7 +75,7 @@ func (s *Service) Summary(ctx context.Context, year int, month time.Month, offic
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
 	first := time.Date(year, month, 1, 0, 0, 0, 0, s.loc)
 
-	out := Summary{Month: first.Format("2006-01"), HabitualThreshold: s.habitual, Rows: []Row{}}
+	out := Summary{Month: first.Format("2006-01"), HabitualThreshold: s.settings.Int(settings.HabitualLateDays), Rows: []Row{}}
 	for d := first; d.Month() == month; d = d.AddDate(0, 0, 1) {
 		if isWeekday(d) && hol[d.Day()] == "" {
 			out.WorkingDays++
@@ -155,7 +156,7 @@ func (s *Service) Summary(ctx context.Context, year int, month time.Month, offic
 				r.Adjusted++
 			}
 		}
-		r.Habitual = r.LateDays >= s.habitual
+		r.Habitual = r.LateDays >= out.HabitualThreshold
 		out.Rows = append(out.Rows, r)
 	}
 	return out, nil
