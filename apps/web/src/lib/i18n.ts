@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { adminEn } from "./i18n-admin";
 
 export type Lang = "en" | "fil";
 
@@ -35,6 +36,15 @@ const dict = {
     savedOffline: (slot: string, time: string) =>
       `${slot} saved at ${time} on this phone. It will sync when you are online.`,
     syncedNow: "Your saved logs are now synced.",
+    viewDtr: "View my DTR",
+    back: "Back",
+    printDtr: "Print or save as PDF",
+    prevMonth: "Previous month",
+    nextMonth: "Next month",
+    dtrLoading: "Loading your record…",
+    dtrFailed: "Your record could not be loaded. Check your connection and try again.",
+    dtrIncomplete: "Days marked with ! are missing a log. A supervisor must review them before certifying.",
+    dtrSample: "Sample layout for the bid demo. Confirm it against the agency's official CSC Form No. 48.",
     serverTime: "Official time from the server",
     deviceClock: "This phone's clock. The server sets the official time when you sync.",
     camTitle: "Take your photo",
@@ -55,6 +65,15 @@ const dict = {
     errGeneric: "Something went wrong. Try again.",
     sessionEnded: "Your session has ended. Sign in again.",
     demoNote: "Demo build: synthetic data only.",
+    changePinTitle: "Choose a new PIN",
+    changePinHelp: "Your PIN was set by HR. Choose your own before you continue.",
+    currentPin: "Current PIN",
+    newPin: "New PIN",
+    confirmPin: "Enter the new PIN again",
+    pinRules: "6 to 12 digits. Avoid repeated or counting digits such as 111111 or 123456.",
+    pinMismatch: "The two new PINs do not match.",
+    savePin: "Save new PIN",
+    ...adminEn,
   },
   fil: {
     appName: "DTR",
@@ -87,6 +106,15 @@ const dict = {
     savedOffline: (slot: string, time: string) =>
       `Na-save sa phone ang ${slot} ng ${time}. Mase-sync ito pag online na.`,
     syncedNow: "Na-sync na ang mga naka-save ninyong log.",
+    viewDtr: "Tingnan ang aking DTR",
+    back: "Bumalik",
+    printDtr: "I-print o i-save bilang PDF",
+    prevMonth: "Nakaraang buwan",
+    nextMonth: "Susunod na buwan",
+    dtrLoading: "Kinukuha ang inyong talaan…",
+    dtrFailed: "Hindi makuha ang inyong talaan. Tingnan ang koneksyon at subukan ulit.",
+    dtrIncomplete: "May kulang na log ang mga araw na may !. Dapat itong suriin ng supervisor bago i-certify.",
+    dtrSample: "Sample na layout para sa bid demo. Ikumpara sa opisyal na CSC Form No. 48 ng ahensya.",
     serverTime: "Opisyal na oras mula sa server",
     deviceClock: "Oras ng phone na ito. Itatakda ng server ang opisyal na oras pag nag-sync.",
     camTitle: "Kunan ang inyong larawan",
@@ -107,13 +135,22 @@ const dict = {
     errGeneric: "May nangyaring mali. Subukan ulit.",
     sessionEnded: "Tapos na ang inyong session. Mag-sign in ulit.",
     demoNote: "Demo build: gawa-gawang datos lamang.",
+    changePinTitle: "Pumili ng bagong PIN",
+    changePinHelp: "Itinakda ng HR ang inyong PIN. Pumili ng sarili ninyo bago magpatuloy.",
+    currentPin: "Kasalukuyang PIN",
+    newPin: "Bagong PIN",
+    confirmPin: "Ilagay ulit ang bagong PIN",
+    pinRules: "6 hanggang 12 numero. Iwasan ang magkakaparehong numero o sunod-sunod tulad ng 111111 o 123456.",
+    pinMismatch: "Hindi magkapareho ang dalawang bagong PIN.",
+    savePin: "I-save ang bagong PIN",
   },
 } as const;
 
 export type Strings = (typeof dict)["en"];
 
 export function strings(lang: Lang): Strings {
-  return dict[lang] as unknown as Strings;
+  // Filipino falls back to English for any string not yet translated.
+  return (lang === "fil" ? { ...dict.en, ...dict.fil } : dict.en) as unknown as Strings;
 }
 
 export const LangContext = createContext<{

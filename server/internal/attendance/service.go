@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"dtr/server/internal/dtr"
 	"dtr/server/internal/storage"
 
 	"github.com/jackc/pgx/v5"
@@ -201,4 +202,31 @@ func photoKey(day time.Time, employeeID int64) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%s/%d/%s.img", day.Format("2006/01/02"), employeeID, hex.EncodeToString(r)), nil
+}
+
+// MonthLogs returns the employee's logs for a month in Asia/Manila time.
+func (s *Service) MonthLogs(ctx context.Context, employeeID int64, year int, month time.Month, loc *time.Location) ([]dtr.Log, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT slot::text, recorded_at FROM attendance_logs
+		 WHERE employee_id = $1 AND work_date >= $2 AND work_date < $3
+		 ORDER BY recorded_at`,
+		employeeID,
+		time.Date(year, month, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(year, month+1, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []dtr.Log
+	for rows.Next() {
+		var slot string
+		var at time.Time
+		if err := rows.Scan(&slot, &at); err != nil {
+			return nil, err
+		}
+		local := at.In(loc)
+		out = append(out, dtr.Log{Day: local.Day(), Slot: slot, At: local})
+	}
+	return out, rows.Err()
 }

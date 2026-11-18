@@ -6,6 +6,42 @@ export interface Employee {
   full_name: string;
   position: string;
   office: string;
+  role: string;
+  must_change_pin: boolean;
+}
+
+export interface AdminEmployee {
+  id: number;
+  employee_no: string;
+  full_name: string;
+  position: string;
+  office: string;
+  role: string;
+  employment: string;
+  active: boolean;
+  supervisor_id: number | null;
+  schedule: string | null;
+}
+
+export interface EmployeeInput {
+  employee_no?: string;
+  full_name?: string;
+  position?: string;
+  office?: string;
+  role?: string;
+  employment?: string;
+  active?: boolean;
+  supervisor_id?: number;
+}
+
+export interface Schedule {
+  id: number;
+  name: string;
+  am_start: string;
+  am_end: string;
+  pm_start: string;
+  pm_end: string;
+  is_default: boolean;
 }
 
 export interface LogEntry {
@@ -21,6 +57,23 @@ export interface Today {
   logs: LogEntry[];
   next_slot: string | null;
   server_time: string;
+}
+
+export interface DtrDay {
+  day: number;
+  weekday: string;
+  am_in: string;
+  am_out: string;
+  pm_in: string;
+  pm_out: string;
+  undertime_min: number;
+  incomplete: boolean;
+}
+
+export interface DtrResponse {
+  employee: Employee;
+  sheet: { month: string; days: DtrDay[]; total_undertime_min: number };
+  official_hours: { am_start: string; am_end: string; pm_start: string; pm_end: string };
 }
 
 export class NetworkError extends Error {}
@@ -83,6 +136,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
 export const api = {
   setToken(token: string | null) {
     memoryToken = token;
@@ -98,7 +157,26 @@ export const api = {
     }),
 
   me: () => request<Employee>("/api/me"),
+  changePin: (current_pin: string, new_pin: string) =>
+    request<{ ok: boolean }>("/api/me/pin", json("POST", { current_pin, new_pin })),
+
+  admin: {
+    employees: (q: string) =>
+      request<AdminEmployee[]>(`/api/admin/employees?q=${encodeURIComponent(q)}`),
+    createEmployee: (body: EmployeeInput) =>
+      request<{ employee: AdminEmployee; temp_pin: string }>("/api/admin/employees", json("POST", body)),
+    updateEmployee: (id: number, body: EmployeeInput) =>
+      request<AdminEmployee>(`/api/admin/employees/${id}`, json("PATCH", body)),
+    resetPin: (id: number) =>
+      request<{ temp_pin: string }>(`/api/admin/employees/${id}/reset-pin`, { method: "POST" }),
+    schedules: () => request<Schedule[]>("/api/admin/schedules"),
+    createSchedule: (body: Omit<Schedule, "id" | "is_default">) =>
+      request<Schedule>("/api/admin/schedules", json("POST", body)),
+    assignSchedule: (id: number, schedule_id: number, effective_from: string) =>
+      request<{ ok: boolean }>(`/api/admin/employees/${id}/schedule`, json("PUT", { schedule_id, effective_from })),
+  },
   today: () => request<Today>("/api/attendance/today"),
+  dtr: (month: string) => request<DtrResponse>(`/api/dtr?month=${encodeURIComponent(month)}`),
 
   clock: (p: {
     key: string;

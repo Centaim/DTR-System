@@ -2,7 +2,7 @@
 
 Daily Time Record system for Philippine government agencies. Employees clock in and out with a live photo as proof of attendance. See `PLAN.md` for scope and `CLAUDE.md` for project rules.
 
-**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino. Not built yet: kiosk, DTR (Form 48) output, approvals, HR tools, the Tauri mobile shell.
+**Status:** Phase 0 (bid demo). Working: PIN sign-in, live-photo clock-in, four daily slots, offline queue with sync, English and Filipino, and a printable monthly DTR in the CSC Form No. 48 layout with computed undertime, roles, HR admin for employees, and dated schedules. Not built yet: kiosk, approvals, photo audit, reports, the Tauri mobile shell. Admin screens are English only for now.
 
 ## Run locally
 
@@ -22,7 +22,15 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:5173 and sign in with employee number `DEMO-0001` and PIN `123456`. This is synthetic demo data.
+Open http://localhost:5173 and sign in with any of these synthetic demo accounts (PIN `123456` for all):
+
+| Employee number | Role |
+|---|---|
+| `DEMO-0001` | Employee |
+| `HR-0001` | HR admin: employees, schedules |
+| `ADMIN-0001` | Super admin: also HR and super admin accounts |
+
+Accounts HR creates get a temporary PIN and must choose their own at first sign-in.
 
 Camera access needs `localhost` or HTTPS. Testing from a phone on the local network needs an HTTPS tunnel or a local certificate.
 

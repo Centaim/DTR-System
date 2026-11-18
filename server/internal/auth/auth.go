@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -68,4 +69,46 @@ func ParseToken(secret []byte, token string) (int64, error) {
 		return 0, errors.New("invalid token")
 	}
 	return c.EmployeeID, nil
+}
+
+// ValidatePIN enforces the PIN policy: 6 to 12 digits, nothing trivially guessable.
+func ValidatePIN(pin string) error {
+	if len(pin) < 6 || len(pin) > 12 {
+		return errors.New("PIN must be 6 to 12 digits.")
+	}
+	for _, r := range pin {
+		if r < '0' || r > '9' {
+			return errors.New("PIN must use digits only.")
+		}
+	}
+	same, asc, desc := true, true, true
+	for i := 1; i < len(pin); i++ {
+		if pin[i] != pin[0] {
+			same = false
+		}
+		if pin[i] != pin[i-1]+1 {
+			asc = false
+		}
+		if pin[i] != pin[i-1]-1 {
+			desc = false
+		}
+	}
+	if same || asc || desc {
+		return errors.New("PIN is too easy to guess. Avoid repeated or counting digits.")
+	}
+	return nil
+}
+
+// TempPIN returns a random 8-digit PIN for first sign-in. The owner must change it.
+func TempPIN() (string, error) {
+	for {
+		n, err := rand.Int(rand.Reader, big.NewInt(100_000_000))
+		if err != nil {
+			return "", err
+		}
+		pin := fmt.Sprintf("%08d", n.Int64())
+		if ValidatePIN(pin) == nil {
+			return pin, nil
+		}
+	}
 }

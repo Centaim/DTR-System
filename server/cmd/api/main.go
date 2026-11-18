@@ -8,12 +8,14 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // Asia/Manila must resolve on minimal containers
 
 	"dtr/server/internal/api"
 	"dtr/server/internal/attendance"
 	"dtr/server/internal/auth"
 	"dtr/server/internal/config"
 	"dtr/server/internal/db"
+	"dtr/server/internal/schedule"
 	"dtr/server/internal/storage"
 	"dtr/server/migrations"
 
@@ -45,6 +47,11 @@ func main() {
 		if err := seedDemo(ctx, pool); err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	loc, err := time.LoadLocation("Asia/Manila")
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	store, err := storage.NewDisk(cfg.PhotoDir)
@@ -79,6 +86,8 @@ func main() {
 		Attendance: attendance.NewService(pool, store, time.Duration(cfg.MinGapSecs)*time.Second),
 		JWTSecret:  cfg.JWTSecret,
 		MaxPhotoMB: cfg.MaxPhotoMB,
+		Schedules:  schedule.NewStore(pool),
+		Loc:        loc,
 	}).Routes(app)
 
 	go func() {
@@ -91,15 +100,23 @@ func main() {
 	}
 }
 
-// seedDemo inserts a synthetic employee for local demos only. Fake data, never real.
+// seedDemo inserts synthetic accounts for local demos only. Fake data, never real.
 func seedDemo(ctx context.Context, pool *pgxpool.Pool) error {
 	hash, err := auth.HashPIN("123456")
 	if err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, `
-		INSERT INTO employees (employee_no, full_name, position, office, pin_hash)
-		VALUES ('DEMO-0001', 'Demo Employee (synthetic)', 'Administrative Aide', 'Records Section', $1)
-		ON CONFLICT (employee_no) DO NOTHING`, hash)
-	return err
+	for _, e := range []struct{ no, name, pos, office, role string }{
+		{"DEMO-0001", "Demo Employee (synthetic)", "Administrative Aide", "Records Section", "employee"},
+		{"HR-0001", "Demo HR Admin (synthetic)", "Administrative Officer", "Human Resources", "hr_admin"},
+		{"ADMIN-0001", "Demo Super Admin (synthetic)", "Systems Administrator", "Information Technology", "super_admin"},
+	} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO employees (employee_no, full_name, position, office, role, pin_hash)
+			VALUES ($1, $2, $3, $4, $5::employee_role, $6)
+			ON CONFLICT (employee_no) DO NOTHING`, e.no, e.name, e.pos, e.office, e.role, hash); err != nil {
+			return err
+		}
+	}
+	return nil
 }

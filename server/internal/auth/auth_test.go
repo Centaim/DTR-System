@@ -63,3 +63,25 @@ func TestNoneAlgorithmRejected(t *testing.T) {
 		t.Error("unsigned token accepted")
 	}
 }
+
+func TestValidatePIN(t *testing.T) {
+	for _, bad := range []string{"", "12345", "123456", "654321", "000000", "111111", "12ab56", "1234567890123"} {
+		if ValidatePIN(bad) == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	for _, ok := range []string{"482916", "90817263", "135792"} {
+		if err := ValidatePIN(ok); err != nil {
+			t.Errorf("%q rejected: %v", ok, err)
+		}
+	}
+}
+
+func TestTempPINIsValid(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		p, err := TempPIN()
+		if err != nil || len(p) != 8 || ValidatePIN(p) != nil {
+			t.Fatalf("bad temp pin %q err=%v", p, err)
+		}
+	}
+}
