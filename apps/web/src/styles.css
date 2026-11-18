@@ -1989,3 +1989,26 @@ table.data th.wrap {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-weight: 600;
 }
+
+/* ---------- System status ---------- */
+
+.sys-lead {
+  margin: 0;
+}
+
+.sys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sys-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.menu-item:disabled {
+  color: var(--ink-2);
+  cursor: progress;
+}

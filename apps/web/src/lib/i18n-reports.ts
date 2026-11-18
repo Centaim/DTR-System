@@ -1,4 +1,4 @@
-// Dashboard and reports are English for now; Filipino falls back to these until reviewed.
+// English strings for the dashboard and reports.
 export const reportsEn = {
   tabDashboard: "Today",
   tabReports: "Reports",

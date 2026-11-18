@@ -140,12 +140,12 @@ function Kiosk() {
     }
   };
 
-  const send = async (photo: Blob) => {
+  const send = async (photo: Blob, faceSeen: boolean | null) => {
     if (step.name !== "photo") return;
     const { session, person, slot } = step;
     setStep({ name: "sending" });
     try {
-      const r = await kioskApi.clock(session, photo, crypto.randomUUID());
+      const r = await kioskApi.clock(session, photo, crypto.randomUUID(), faceSeen);
       setStep({ name: "done", person: r.name ?? person, slot: r.log.slot ?? slot, at: r.log.recorded_at });
     } catch (e) {
       setError(errorText(e, t));

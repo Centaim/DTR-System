@@ -1,4 +1,4 @@
-// Admin screens are English for now; Filipino falls back to these until reviewed.
+// English strings for the admin screens.
 export const adminEn = {
   adminOpen: "HR admin",
   adminTitle: "HR admin",

@@ -17,7 +17,7 @@ export function Home({
   onSignOut: (sessionEnded: boolean) => void;
 }) {
   const { t, lang } = useT();
-  const a = useAttendance();
+  const a = useAttendance(employee.id);
   const [camera, setCamera] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "bad"; text: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -48,14 +48,14 @@ export function Home({
     } else if (r.kind === "saved-offline") {
       setNotice({ tone: "warn", text: t.savedOffline(slotLabel(t, r.slot), formatTime(r.at)) });
     } else {
-      setNotice({ tone: "bad", text: r.message || t.errGeneric });
+      setNotice({ tone: "bad", text: r.code === "queue_unavailable" ? t.queueUnavailable : r.message || t.errGeneric });
     }
   };
 
-  const onPhoto = async (photo: Blob) => {
+  const onPhoto = async (photo: Blob, faceSeen: boolean | null) => {
     setCamera(false);
     setNotice(null);
-    describe(await a.clock(photo));
+    describe(await a.clock(photo, faceSeen));
   };
 
   return (

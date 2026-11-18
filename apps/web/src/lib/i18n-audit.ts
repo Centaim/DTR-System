@@ -1,4 +1,4 @@
-// Photo audit is English for now; Filipino falls back to these until reviewed.
+// English strings for photo audit.
 export const auditEn = {
   tabAudit: "Photo audit",
   viewFlagged: "Flagged",

@@ -37,7 +37,7 @@ interface State {
   sessionEnded: boolean;
 }
 
-export function useAttendance() {
+export function useAttendance(employeeId: number) {
   const [s, setS] = useState<State>({
     today: null,
     items: [],
@@ -50,7 +50,7 @@ export function useAttendance() {
   const flushing = useRef(false);
 
   const refresh = useCallback(async () => {
-    const items = await queue.list();
+    const items = await queue.list(employeeId);
     try {
       const today = await api.today();
       const offsetMs = Date.parse(today.server_time) - Date.now();
@@ -64,18 +64,19 @@ export function useAttendance() {
       }
       return null;
     }
-  }, []);
+  }, [employeeId]);
 
   const flush = useCallback(async () => {
     if (flushing.current) return;
     flushing.current = true;
     try {
-      for (const item of (await queue.list()).filter((i) => i.status === "pending")) {
+      for (const item of (await queue.list(employeeId)).filter((i) => i.status === "pending")) {
         try {
           await api.clock({
             key: item.key,
-            photo: item.photo,
+            photo: await queue.photo(item),
             clientTime: item.clientTime,
+            faceSeen: item.faceSeen,
             offline: true,
             deviceId: item.deviceId,
             latitude: item.latitude,
@@ -89,7 +90,7 @@ export function useAttendance() {
             break;
           }
           if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
-            await queue.put({ ...item, status: "rejected", reason: e.message });
+            await queue.reject(item, e.message);
             continue;
           }
           break; // server trouble: keep the item and retry later
@@ -99,7 +100,7 @@ export function useAttendance() {
       flushing.current = false;
       await refresh();
     }
-  }, [refresh]);
+  }, [employeeId, refresh]);
 
   useEffect(() => {
     void refresh().then(() => flush());
@@ -132,7 +133,7 @@ export function useAttendance() {
   const nextSlot = filled < slots.length ? slots[filled]! : null;
 
   const clock = useCallback(
-    async (photo: Blob): Promise<ClockResult> => {
+    async (photo: Blob, faceSeen: boolean | null): Promise<ClockResult> => {
       setBusy(true);
       const key = crypto.randomUUID();
       const clientTime = new Date().toISOString();
@@ -145,6 +146,7 @@ export function useAttendance() {
           clientTime,
           offline: false,
           deviceId: deviceId(),
+          faceSeen,
           ...where,
         });
         setFreshSlot(log.slot);
@@ -153,14 +155,16 @@ export function useAttendance() {
       } catch (e) {
         if (e instanceof NetworkError) {
           const slot = nextSlot ?? "am_in";
-          await queue.put({
+          if (!queue.canSeal()) return { kind: "error", code: "queue_unavailable", message: "" };
+          await queue.add({
             key,
+            employeeId,
             photo,
+            faceSeen,
             clientTime,
             deviceId: deviceId(),
             ...where,
             createdAt: Date.now(),
-            status: "pending",
           });
           setS((p) => ({ ...p, online: false }));
           await refresh();
@@ -175,7 +179,7 @@ export function useAttendance() {
         setBusy(false);
       }
     },
-    [nextSlot, refresh, s.today?.location_wanted],
+    [employeeId, nextSlot, refresh, s.today?.location_wanted],
   );
 
   const dismiss = useCallback(

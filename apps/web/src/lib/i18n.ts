@@ -8,6 +8,8 @@ import { kioskEn, kioskFil } from "./i18n-kiosk";
 import { governanceEn, governanceFil } from "./i18n-governance";
 import { dtrEn, dtrFil } from "./i18n-dtr";
 import { engageEn, engageFil } from "./i18n-engage";
+import { complianceEn, complianceFil } from "./i18n-compliance";
+import { hrFil } from "./i18n-fil-hr";
 
 export type Lang = "en" | "fil";
 
@@ -96,6 +98,7 @@ const dict = {
     ...governanceEn,
     ...dtrEn,
     ...engageEn,
+    ...complianceEn,
   },
   fil: {
     appName: "DTR",
@@ -168,21 +171,26 @@ const dict = {
     navLabel: "Pangunahin",
     navHome: "Home",
     navDtr: "Attendance",
-    navRequests: "Mga request",
+    navRequests: "Request",
     navApprovals: "Aprubahan",
     navAdmin: "HR admin",
     ...kioskFil,
     ...governanceFil,
     ...dtrFil,
     ...engageFil,
+    ...hrFil,
+    ...complianceFil,
   },
 } as const;
 
 export type Strings = (typeof dict)["en"];
 
+// The build fails if any English string has no Filipino version.
+type Untranslated = Exclude<keyof (typeof dict)["en"], keyof (typeof dict)["fil"]>;
+export const everyStringTranslated: [Untranslated] extends [never] ? true : Untranslated = true;
+
 export function strings(lang: Lang): Strings {
-  // Filipino falls back to English for any string not yet translated.
-  return (lang === "fil" ? { ...dict.en, ...dict.fil } : dict.en) as unknown as Strings;
+  return dict[lang] as unknown as Strings;
 }
 
 export const LangContext = createContext<{

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, RotateCcw, Check, X, TriangleAlert } from "lucide-react";
 import { useT } from "../lib/i18n";
+import { faceInFrame, preloadFaceCheck, sharpness } from "../lib/faceCheck";
 
 type Phase =
   | { name: "starting" }
   | { name: "live" }
   | { name: "error"; message: "camDenied" | "camMissing" | "camFailed" }
-  | { name: "review"; blob: Blob; url: string; dark: boolean };
+  | { name: "review"; blob: Blob; url: string; dark: boolean; blurry: boolean; face: boolean | null | undefined };
 
 const MAX_SIDE = 720;
 
@@ -32,7 +33,7 @@ export function CameraSheet({
   help,
 }: {
   onCancel: () => void;
-  onConfirm: (photo: Blob) => void;
+  onConfirm: (photo: Blob, faceSeen: boolean | null) => void;
   title?: string;
   help?: string;
 }) {
@@ -79,6 +80,7 @@ export function CameraSheet({
   }, []);
 
   useEffect(() => {
+    preloadFaceCheck();
     void start();
     return stop;
   }, [start, stop]);
@@ -129,11 +131,16 @@ export function CameraSheet({
     canvas.height = Math.round(v.videoHeight * scale);
     canvas.getContext("2d")?.drawImage(v, 0, 0, canvas.width, canvas.height);
     const dark = meanLuma(canvas) < 45;
+    const blurry = !dark && sharpness(canvas) < 20;
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
         stop();
-        setPhase({ name: "review", blob, url: URL.createObjectURL(blob), dark });
+        const url = URL.createObjectURL(blob);
+        setPhase({ name: "review", blob, url, dark, blurry, face: undefined });
+        void faceInFrame(canvas).then((face) =>
+          setPhase((p) => (p.name === "review" && p.url === url ? { ...p, face } : p)),
+        );
       },
       "image/jpeg",
       0.72,
@@ -173,17 +180,23 @@ export function CameraSheet({
         )}
       </div>
 
-      {phase.name === "review" && phase.dark && (
+      {phase.name === "review" && (phase.dark || phase.blurry || phase.face === false) && (
         <p className="warn-line" role="status">
-          <TriangleAlert aria-hidden="true" size={18} /> {t.dark}
+          <TriangleAlert aria-hidden="true" size={18} />{" "}
+          {phase.face === false ? t.noFace : phase.dark ? t.dark : t.blurry}
         </p>
       )}
 
       <div className="sheet-actions">
         {phase.name === "review" ? (
           <>
-            <button className="btn primary" data-autofocus onClick={() => onConfirm(phase.blob)}>
-              <Check aria-hidden="true" size={22} /> {t.usePhoto}
+            <button
+              className="btn primary"
+              data-autofocus
+              disabled={phase.face === undefined}
+              onClick={() => onConfirm(phase.blob, phase.face ?? null)}
+            >
+              <Check aria-hidden="true" size={22} /> {phase.face === undefined ? t.photoChecking : t.usePhoto}
             </button>
             <button className="btn quiet" onClick={retake}>
               <RotateCcw aria-hidden="true" size={20} /> {t.retake}

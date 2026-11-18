@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { api, type SummaryData } from "../../lib/api";
 import { useT } from "../../lib/i18n";
+import { saveBlob } from "../../lib/download";
 
 const hm = (m: number) => (m === 0 ? "" : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`);
 
@@ -49,6 +50,17 @@ export function ReportsTab() {
     };
   }, [month, office]);
 
+  const downloadXlsx = async () => {
+    setBusy(true);
+    try {
+      saveBlob(await api.reports.xlsx(month, office), `attendance-summary-${month}.xlsx`);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const download = async () => {
     setBusy(true);
     try {
@@ -72,9 +84,14 @@ export function ReportsTab() {
         <h2 id="rep-h" className="panel-h">
           {t.monthReport}
         </h2>
-        <button className="btn quiet" onClick={download} disabled={busy || !data}>
-          <Download aria-hidden="true" size={20} /> {busy ? t.downloading : t.downloadCsv}
-        </button>
+        <span className="actions tight">
+          <button className="btn quiet" onClick={downloadXlsx} disabled={busy || !data}>
+            <Download aria-hidden="true" size={20} /> {t.downloadExcel}
+          </button>
+          <button className="btn quiet" onClick={download} disabled={busy || !data}>
+            <Download aria-hidden="true" size={20} /> {busy ? t.downloading : t.downloadCsv}
+          </button>
+        </span>
       </div>
 
       <div className="month-nav">
@@ -122,6 +139,7 @@ export function ReportsTab() {
                     <th scope="col">{t.repExcused}</th>
                     <th scope="col">{t.repUndertime}</th>
                     <th scope="col">{t.repReview}</th>
+                    <th scope="col">{t.repCorrections}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -134,6 +152,7 @@ export function ReportsTab() {
                           {r.office ? ` · ${r.office}` : ""}
                         </span>
                         {r.habitual_late && <span className="tag warn">{t.habitualTag}</span>}
+                        {r.frequent_corrections && <span className="tag warn">{t.frequentTag}</span>}
                       </th>
                       <td>{r.present_days}</td>
                       <td>{r.late_days}</td>
@@ -141,6 +160,7 @@ export function ReportsTab() {
                       <td>{r.excused_days}</td>
                       <td>{hm(r.undertime_min)}</td>
                       <td>{r.incomplete_days || ""}</td>
+                      <td>{r.corrections || ""}</td>
                     </tr>
                   ))}
                 </tbody>

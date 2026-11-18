@@ -1,4 +1,4 @@
-// Import, ID cards and activity are English for now; Filipino falls back to these until reviewed.
+// English strings for import, ID cards and activity.
 export const peopleEn = {
   importEmployees: "Import",
   idCards: "ID cards",
@@ -56,6 +56,13 @@ export const peopleEn = {
   act_log_review_cleared: "Cleared a flagged log",
   act_log_review_follow_up: "Marked a log for follow-up",
   act_report_export: "Exported a report",
+  act_audit_pack_export: "Exported an audit pack",
+  act_access_review_export: "Exported the access review",
+  act_data_export: "Exported an employee's data",
+  act_mfa_enable: "Turned on two-step sign-in",
+  act_mfa_reset: "Reset two-step sign-in",
+  act_mfa_recovery_used: "Used a recovery code",
+  act_session_reuse_blocked: "Blocked a reused session",
   act_setting_change: "Changed a setting",
   act_legal_hold_create: "Placed a legal hold",
   act_legal_hold_release: "Released a legal hold",

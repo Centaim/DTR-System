@@ -78,11 +78,12 @@ export const kioskApi = {
     form.set("session", session);
     return call<{ ok: boolean }>("/api/kiosk/privacy", { method: "POST", body: form });
   },
-  clock: (session: string, photo: Blob, key: string) => {
+  clock: (session: string, photo: Blob, key: string, faceSeen: boolean | null) => {
     const form = new FormData();
     form.set("session", session);
     form.set("idempotency_key", key);
     form.set("photo", photo, "photo.jpg");
+    if (faceSeen !== null) form.set("face_seen", String(faceSeen));
     return call<{ log: { slot: string; recorded_at: string }; name: string }>("/api/kiosk/clock", {
       method: "POST",
       body: form,

@@ -167,6 +167,8 @@ export interface SummaryRow {
   incomplete_days: number;
   adjusted_days: number;
   habitual_late: boolean;
+  corrections: number;
+  frequent_corrections: boolean;
 }
 
 export interface SummaryData {
@@ -299,6 +301,30 @@ export interface Delegation {
   to_name: string;
   from_date: string;
   to_date: string;
+}
+
+export interface AccessRow {
+  employee_no: string;
+  name: string;
+  office: string;
+  role: string;
+  active: boolean;
+  two_step: boolean;
+  last_login: string | null;
+  days_idle: number | null;
+  sessions: number;
+  attention: string;
+}
+
+export interface SystemStatus {
+  uptime_seconds: number;
+  photos_encrypted: boolean;
+  retention_days: number;
+  storage: { database_bytes: number; photo_bytes: number; photo_files: number; free_bytes: number; total_bytes: number };
+  backup: { file: string; bytes: number; last_ok_at: string | null; last_failed_at: string | null };
+  kiosks: { active: number; online: number };
+  queues: { requests: number; flags: number; devices: number; dtrs: number };
+  jobs: { retention_last_run: string | null; reminders_last_run: string | null };
 }
 
 export interface LogEntry {
@@ -495,7 +521,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 async function requestBlob(path: string): Promise<Blob> {
   const res = await send(path, {});
-  if (!res.ok) throw new ApiError(res.status, "error", "");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    throw new ApiError(res.status, body?.error?.code ?? "error", body?.error?.message ?? "");
+  }
   return res.blob();
 }
 
@@ -553,6 +582,8 @@ export const api = {
     dashboard: () => request<DashboardData>("/api/reports/dashboard"),
     summary: (month: string, office: string) =>
       request<SummaryData>(`/api/reports/summary?month=${month}&office=${encodeURIComponent(office)}`),
+    xlsx: (month: string, office: string) =>
+      requestBlob(`/api/reports/summary.xlsx?month=${month}&office=${encodeURIComponent(office)}`),
     csv: (month: string, office: string) =>
       requestBlob(`/api/reports/summary.csv?month=${month}&office=${encodeURIComponent(office)}`),
     holidays: (year: number) => request<Holiday[]>(`/api/reports/holidays?year=${year}`),
@@ -628,6 +659,16 @@ export const api = {
     },
     open: (id: number) => requestBlob(`/api/requests/${id}/attachment`),
   },
+  compliance: {
+    auditPack: (month: string, office: string, photos: boolean) =>
+      requestBlob(`/api/compliance/audit-pack?month=${month}&office=${encodeURIComponent(office)}&photos=${photos ? 1 : 0}`),
+    accessReview: () => request<AccessRow[]>("/api/compliance/access-review"),
+    accessReviewCsv: () => requestBlob("/api/compliance/access-review.csv"),
+    employeeData: (employeeNo: string) =>
+      requestBlob(`/api/compliance/data-export?employee_no=${encodeURIComponent(employeeNo)}`),
+    system: () => request<SystemStatus>("/api/compliance/system"),
+    myData: () => requestBlob("/api/me/export"),
+  },
   acceptPrivacy: () => request<{ ok: boolean }>("/api/me/privacy", { method: "POST" }),
 
   admin: {
@@ -688,6 +729,7 @@ export const api = {
     deviceId: string;
     latitude?: number;
     longitude?: number;
+    faceSeen?: boolean | null;
   }) => {
     const form = new FormData();
     form.set("idempotency_key", p.key);
@@ -695,6 +737,7 @@ export const api = {
     form.set("client_time", p.clientTime);
     form.set("offline", String(p.offline));
     form.set("device_id", p.deviceId);
+    if (p.faceSeen === true || p.faceSeen === false) form.set("face_seen", String(p.faceSeen));
     if (p.latitude !== undefined) form.set("latitude", String(p.latitude));
     if (p.longitude !== undefined) form.set("longitude", String(p.longitude));
     return request<{ log: LogEntry; replay: boolean }>("/api/attendance/clock", {

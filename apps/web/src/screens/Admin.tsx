@@ -11,14 +11,16 @@ import { KiosksTab } from "./admin/KiosksTab";
 import { SettingsTab } from "./admin/SettingsTab";
 import { TrackerTab } from "./admin/TrackerTab";
 import { LocationsTab } from "./admin/LocationsTab";
+import { ComplianceTab } from "./admin/ComplianceTab";
+import { SystemTab } from "./admin/SystemTab";
 
 export function Admin({ employee }: { employee: Employee }) {
   const { t } = useT();
   const manager = employee.role === "hr_admin" || employee.role === "super_admin";
-  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports" | "activity" | "kiosks" | "settings" | "tracker" | "locations";
+  type Tab = "dashboard" | "employees" | "schedules" | "audit" | "reports" | "activity" | "kiosks" | "settings" | "tracker" | "locations" | "compliance" | "system";
   const tabs: Tab[] = manager
-    ? ["dashboard", "tracker", "employees", "schedules", "kiosks", "locations", "audit", "reports", "activity", "settings"]
-    : ["dashboard", "tracker", "audit", "reports", "activity"];
+    ? ["dashboard", "tracker", "employees", "schedules", "kiosks", "locations", "audit", "reports", "compliance", "activity", "system", "settings"]
+    : ["dashboard", "tracker", "audit", "reports", "compliance", "activity"];
   const [tab, setTab] = useState<Tab>("dashboard");
   const labels: Record<Tab, string> = {
     dashboard: t.tabDashboard,
@@ -31,6 +33,8 @@ export function Admin({ employee }: { employee: Employee }) {
     settings: t.tabSettings,
     tracker: t.tabTracker,
     locations: t.tabLocations,
+    compliance: t.tabCompliance,
+    system: t.tabSystem,
   };
   const label = (k: Tab) => labels[k];
 
@@ -67,6 +71,10 @@ export function Admin({ employee }: { employee: Employee }) {
             <ReportsTab />
           ) : tab === "activity" ? (
             <ActivityTab />
+          ) : tab === "compliance" ? (
+            <ComplianceTab canExportPeople={manager} />
+          ) : tab === "system" ? (
+            <SystemTab />
           ) : tab === "locations" ? (
             <LocationsTab />
           ) : tab === "tracker" ? (

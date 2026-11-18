@@ -1,4 +1,4 @@
-// Requests and approvals are English for now; Filipino falls back to these until reviewed.
+// English strings for requests and approvals.
 export const requestsEn = {
   reqTitle: "Requests",
   newRequest: "New request",
